@@ -1,0 +1,78 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// valid_policy.pol — Sample CloudPol Policy File
+// Demonstrates all supported syntax constructs.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 1. Simple ALLOW — no conditions
+ALLOW ROLE "DevOps"
+      ACTION "s3:PutObject"
+      ON RESOURCE "arn:aws:s3:::prod-artifacts";
+
+// 2. Simple DENY
+DENY ROLE "Intern"
+     ACTION "iam:CreateUser"
+     ON RESOURCE "arn:aws:iam:::*";
+
+// 3. ALLOW with single IP condition
+ALLOW ROLE "DataEngineer"
+      ACTION "s3:GetObject"
+      ON RESOURCE "arn:aws:s3:::data-lake"
+      WHERE ip == "10.10.0.0/24";
+
+// 4. ALLOW with MFA check
+ALLOW ROLE "SRE"
+      ACTION "ec2:TerminateInstances"
+      ON RESOURCE "arn:aws:ec2:::instance/*"
+      WHERE mfa == TRUE;
+
+// 5. DENY with region restriction
+DENY ROLE "Developer"
+     ACTION "rds:DeleteDBInstance"
+     ON RESOURCE "arn:aws:rds:::db:prod-*"
+     WHERE region != "us-east-1";
+
+// 6. Compound condition — AND
+ALLOW ROLE "SecurityAuditor"
+      ACTION "cloudtrail:LookupEvents"
+      ON RESOURCE "arn:aws:cloudtrail:::trail/*"
+      WHERE ip == "192.168.1.0/24" AND mfa == TRUE;
+
+// 7. Compound condition — OR
+ALLOW ROLE "OnCallEngineer"
+      ACTION "ec2:StopInstances"
+      ON RESOURCE "arn:aws:ec2:::instance/i-*"
+      WHERE region == "us-east-1" OR region == "eu-west-1";
+
+// 8. Compound condition — AND + OR (precedence test)
+DENY ROLE "ExternalContractor"
+     ACTION "s3:DeleteObject"
+     ON RESOURCE "arn:aws:s3:::client-data"
+     WHERE ip != "10.0.0.0/8" AND mfa == FALSE;
+
+// 9. NOT condition
+ALLOW ROLE "QAEngineer"
+      ACTION "lambda:InvokeFunction"
+      ON RESOURCE "arn:aws:lambda:::function:test-*"
+      WHERE NOT region == "ap-south-1";
+
+// 10. Numeric comparison on time (hour of day 0-23)
+DENY ROLE "Analyst"
+     ACTION "redshift:GetClusterCredentials"
+     ON RESOURCE "arn:aws:redshift:::cluster:analytics"
+     WHERE time >= 22 AND time <= 6;
+
+/* Block comment:
+   Policy 11 — multi-condition with tag attribute */
+ALLOW ROLE "CostManager"
+      ACTION "ec2:DescribeInstances"
+      ON RESOURCE "arn:aws:ec2:::instance/*"
+      WHERE tag == "env:production" AND mfa == TRUE;
+
+// 12. Overlapping policies to test SMT conflict detection (Step 4)
+ALLOW ROLE "Admin"
+      ACTION "s3:*"
+      ON RESOURCE "arn:aws:s3:::*";
+
+DENY ROLE "Admin"
+     ACTION "s3:DeleteBucket"
+     ON RESOURCE "arn:aws:s3:::*";

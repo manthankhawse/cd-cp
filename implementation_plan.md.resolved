@@ -1,0 +1,157 @@
+# Cloud Policy as Code DSL Compiler — Steps 1 & 2
+
+Complete the first two phases of the compiler: designing the formal DSL grammar and implementing the lexer (tokenizer) using Flex. This gives us the language definition and character-level scanning layer that all subsequent stages depend on.
+
+---
+
+## Proposed Project Structure
+
+```
+cd-cp/
+├── src/
+│   ├── policy_lexer.l       # Flex lexer specification [NEW]
+│   └── policy_parser.y      # Bison parser (stub only for now) [NEW]
+├── include/
+│   └── ast.h                # AST node type declarations [NEW]
+├── samples/
+│   ├── valid_policy.pol      # Valid sample DSL policy [NEW]
+│   └── invalid_policy.pol    # Invalid sample for error testing [NEW]
+├── docs/
+│   ├── LANGUAGE_REFERENCE.md # Complete DSL language guide [NEW]
+│   └── GRAMMAR.md            # Formal BNF grammar [NEW]
+├── Makefile                  # Build system [NEW]
+└── README.md                 # Project overview [NEW]
+```
+
+---
+
+## Step 1: DSL Grammar Design
+
+### DSL Language Overview
+
+The language is named **CloudPol**. A policy file consists of one or more policy statements. Statements follow this pattern:
+
+```
+ALLOW | DENY  ROLE "<role_name>"  ACTION "<action>"
+  ON RESOURCE "<resource>"
+  [WHERE <condition_expr>];
+```
+
+### Formal BNF Grammar
+
+```
+<program>       ::= <statement>+
+
+<statement>     ::= <effect> ROLE <STRING> ACTION <STRING>
+                    ON RESOURCE <STRING>
+                    [WHERE <condition>] SEMICOLON
+
+<effect>        ::= ALLOW | DENY
+
+<condition>     ::= <simple_cond>
+                  | <simple_cond> AND <condition>
+                  | <simple_cond> OR  <condition>
+                  | NOT <simple_cond>
+
+<simple_cond>   ::= <attribute> <rel_op> <value>
+
+<attribute>     ::= ip | time | mfa | region | tag
+
+<rel_op>        ::= == | != | < | > | <= | >=
+
+<value>         ::= <STRING> | <NUMBER> | TRUE | FALSE
+
+<STRING>        ::= '"' [^"]* '"'
+<NUMBER>        ::= [0-9]+(\.[0-9]+)?
+```
+
+### Token Set
+
+| Token | Pattern | Description |
+|---|---|---|
+| `KW_ALLOW` | `ALLOW` | Effect keyword |
+| `KW_DENY` | `DENY` | Effect keyword |
+| `KW_ROLE` | `ROLE` | Subject specifier |
+| `KW_ACTION` | `ACTION` | Action specifier |
+| `KW_ON` | `ON` | Resource preposition |
+| `KW_RESOURCE` | `RESOURCE` | Resource specifier |
+| `KW_WHERE` | `WHERE` | Condition clause |
+| `KW_AND` | `AND` | Logical AND |
+| `KW_OR` | `OR` | Logical OR |
+| `KW_NOT` | `NOT` | Logical NOT |
+| `KW_TRUE` | `TRUE` | Boolean literal |
+| `KW_FALSE` | `FALSE` | Boolean literal |
+| `KW_MFA` | `mfa` | MFA attribute |
+| `KW_IP` | `ip` | IP attribute |
+| `KW_TIME` | `time` | Time attribute |
+| `KW_REGION` | `region` | Region attribute |
+| `KW_TAG` | `tag` | Tag attribute |
+| `OP_EQ` | `==` | Equality |
+| `OP_NEQ` | `!=` | Inequality |
+| `OP_LT` | `<` | Less than |
+| `OP_GT` | `>` | Greater than |
+| `OP_LEQ` | `<=` | Less-or-equal |
+| `OP_GEQ` | `>=` | Greater-or-equal |
+| `STRING` | `"..."` | Quoted string literal |
+| `NUMBER` | `[0-9]+` | Numeric literal |
+| `SEMICOLON` | `;` | Statement terminator |
+
+---
+
+## Step 2: Lexical Analysis (Flex)
+
+#### [NEW] [policy_lexer.l](file:///home/manthankhawse/cd-cp/src/policy_lexer.l)
+
+Full Flex lexer. Handles:
+- All keywords (case-sensitive)
+- Quoted string literals with value capture
+- Multi-character operators (`==`, `!=`, `<=`, `>=`)
+- Line/column tracking for error reporting
+- Single-line (`//`) and block (`/* */`) comments
+- Whitespace skipping
+
+#### [NEW] [policy_parser.y](file:///home/manthankhawse/cd-cp/src/policy_parser.y)
+
+Bison stub that declares all tokens from the lexer so the lexer compiles cleanly. Full grammar rules come in Step 3.
+
+#### [NEW] [ast.h](file:///home/manthankhawse/cd-cp/include/ast.h)
+
+AST node type enum and struct declarations for use in later steps.
+
+#### [NEW] [Makefile](file:///home/manthankhawse/cd-cp/Makefile)
+
+Drives the build: `flex → bison → gcc` compilation chain.
+
+---
+
+## Documentation
+
+#### [NEW] LANGUAGE_REFERENCE.md
+User-facing language guide: syntax, examples, reserved words, error messages.
+
+#### [NEW] GRAMMAR.md
+Developer-facing formal BNF spec and token table.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+
+1. **Compile the lexer** with flex + gcc:
+   ```bash
+   cd /home/manthankhawse/cd-cp && make lexer
+   ```
+   Expected: compiles with zero errors.
+
+2. **Tokenization test** on the valid sample:
+   ```bash
+   echo 'ALLOW ROLE "Admin" ACTION "s3:PutObject" ON RESOURCE "arn:aws:s3:::bucket" WHERE ip == "10.0.0.1" AND mfa == TRUE;' | ./policy_lexer
+   ```
+   Expected: prints each token type and value on a separate line.
+
+3. **Tokenization test** on the invalid sample (unrecognized character):
+   ```bash
+   echo 'ALLOW ROLE @BadRole ACTION "s3:*" ON RESOURCE "arn:*";' | ./policy_lexer
+   ```
+   Expected: `lexer error` message on stderr, graceful exit.

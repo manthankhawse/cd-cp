@@ -1,0 +1,36 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// invalid_policy.pol — Intentionally Malformed CloudPol Policies
+// Used to verify lexer error reporting and future parser error recovery.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ERROR 1: Illegal character '@' in role name (not quoted)
+ALLOW ROLE @DevOps ACTION "s3:GetObject" ON RESOURCE "arn:aws:s3:::bucket";
+
+// ERROR 2: Missing closing quote — unterminated string literal
+ALLOW ROLE "DataAdmin ACTION "s3:PutObject" ON RESOURCE "arn:aws:s3:::bucket";
+
+// ERROR 3: Unknown keyword (PERMIT is not part of CloudPol)
+PERMIT ROLE "Intern" ACTION "ec2:DescribeInstances" ON RESOURCE "arn:aws:ec2:::*";
+
+// ERROR 4: Attribute name typo — 'IP' instead of lowercase 'ip'
+ALLOW ROLE "SRE"
+      ACTION "ec2:TerminateInstances"
+      ON RESOURCE "arn:aws:ec2:::instance/*"
+      WHERE IP == "10.0.0.1";
+
+// ERROR 5: Missing semicolon at end of statement
+DENY ROLE "Intern"
+     ACTION "iam:DeleteUser"
+     ON RESOURCE "arn:aws:iam:::user/*"
+
+// ERROR 6: Unknown attribute 'environment'
+ALLOW ROLE "DevOps"
+      ACTION "s3:GetObject"
+      ON RESOURCE "arn:aws:s3:::assets"
+      WHERE environment == "production";
+
+// ERROR 7: Invalid operator '==='
+ALLOW ROLE "QA"
+      ACTION "lambda:InvokeFunction"
+      ON RESOURCE "arn:aws:lambda:::function:test-*"
+      WHERE mfa === TRUE;

@@ -1,0 +1,21 @@
+# Cloud Policy DSL Compiler - Steps 1 & 2
+
+## Step 1: DSL Grammar Design
+- [x] Plan project directory structure
+- [x] Define DSL syntax and BNF grammar
+- [x] Write formal BNF notation for all constructs (ALLOW/DENY, WHERE, resources, conditions)
+- [x] Design token listing
+
+## Step 2: Lexical Analysis (Lex/Flex)
+- [x] Create [policy_lexer.l](file:///home/manthankhawse/cd-cp/src/policy_lexer.l) with all token patterns
+- [x] Handle keywords, identifiers, string literals, operators, comments, whitespace
+- [x] Wire up yylval for passing token values to parser
+
+## Documentation
+- [x] Create [LANGUAGE_REFERENCE.md](file:///home/manthankhawse/cd-cp/docs/LANGUAGE_REFERENCE.md) — DSL language reference guide
+- [x] Create [GRAMMAR.md](file:///home/manthankhawse/cd-cp/docs/GRAMMAR.md) — formal BNF grammar documentation
+
+## Verification
+- [x] Create sample [.pol](file:///home/manthankhawse/cd-cp/samples/valid_policy.pol) DSL files
+- [x] Test lexer compilation with `flex`
+- [x] Test tokenization with sample inputs
