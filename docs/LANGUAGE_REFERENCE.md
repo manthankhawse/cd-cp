@@ -259,56 +259,206 @@ The following identifiers are **reserved** and cannot be used as role/action/res
 
 ### Example 1 — Simple Deny
 
-```cloudpol
-DENY ROLE "Intern"
-     ACTION "iam:CreateUser"
-     ON RESOURCE "arn:aws:iam:::*";
+**DSL**
+
 ```
+DENY ROLE "Intern"
+ACTION "iam:CreateUser"
+ON RESOURCE "arn:aws:iam:::*";
+```
+
+**IAM Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Deny",
+      "Action": "iam:CreateUser",
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+(Attach this to the `Intern` role)
+
+---
 
 ### Example 2 — IP-restricted Access
 
-```cloudpol
-ALLOW ROLE "DataEngineer"
-      ACTION "s3:GetObject"
-      ON RESOURCE "arn:aws:s3:::data-lake"
-      WHERE ip == "10.10.0.0/24";
+**DSL**
+
 ```
+ALLOW ROLE "DataEngineer"
+ACTION "s3:GetObject"
+ON RESOURCE "arn:aws:s3:::data-lake"
+WHERE ip == "10.10.0.0/24";
+```
+
+**IAM Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::data-lake/*",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": "10.10.0.0/24"
+        }
+      }
+    }
+  ]
+}
+```
+
+---
 
 ### Example 3 — MFA Enforcement
 
-```cloudpol
-ALLOW ROLE "SRE"
-      ACTION "ec2:TerminateInstances"
-      ON RESOURCE "arn:aws:ec2:::instance/*"
-      WHERE mfa == TRUE;
+**DSL**
+
 ```
+ALLOW ROLE "SRE"
+ACTION "ec2:TerminateInstances"
+ON RESOURCE "arn:aws:ec2:::instance/*"
+WHERE mfa == TRUE;
+```
+
+**IAM Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ec2:TerminateInstances",
+      "Resource": "*",
+      "Condition": {
+        "Bool": {
+          "aws:MultiFactorAuthPresent": "true"
+        }
+      }
+    }
+  ]
+}
+```
+
+---
 
 ### Example 4 — Compound Condition
 
-```cloudpol
-ALLOW ROLE "SecurityAuditor"
-      ACTION "cloudtrail:LookupEvents"
-      ON RESOURCE "arn:aws:cloudtrail:::trail/*"
-      WHERE ip == "192.168.1.0/24" AND mfa == TRUE;
+**DSL**
+
 ```
+ALLOW ROLE "SecurityAuditor"
+ACTION "cloudtrail:LookupEvents"
+ON RESOURCE "arn:aws:cloudtrail:::trail/*"
+WHERE ip == "192.168.1.0/24" AND mfa == TRUE;
+```
+
+**IAM Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "cloudtrail:LookupEvents",
+      "Resource": "*",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": "192.168.1.0/24"
+        },
+        "Bool": {
+          "aws:MultiFactorAuthPresent": "true"
+        }
+      }
+    }
+  ]
+}
+```
+
+---
 
 ### Example 5 — Time-based Restriction
 
-```cloudpol
-DENY ROLE "Analyst"
-     ACTION "redshift:GetClusterCredentials"
-     ON RESOURCE "arn:aws:redshift:::cluster:analytics"
-     WHERE time >= 22 AND time <= 6;
+**DSL**
+
 ```
+DENY ROLE "Analyst"
+ACTION "redshift:GetClusterCredentials"
+ON RESOURCE "arn:aws:redshift:::cluster:analytics"
+WHERE time >= 22 AND time <= 6;
+```
+
+IAM doesn’t support direct hour comparisons like this, so we approximate using UTC timestamps.
+
+**IAM Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Deny",
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": "arn:aws:redshift:*:*:cluster:analytics",
+      "Condition": {
+        "DateGreaterThan": {
+          "aws:CurrentTime": "2026-01-01T22:00:00Z"
+        },
+        "DateLessThan": {
+          "aws:CurrentTime": "2026-01-02T06:00:00Z"
+        }
+      }
+    }
+  ]
+}
+```
+
+Note: For recurring daily windows, AWS IAM alone is limited. You typically combine with **AWS Organizations SCPs, Lambda, or session policies**.
+
+---
 
 ### Example 6 — NOT Condition
 
-```cloudpol
-ALLOW ROLE "QAEngineer"
-      ACTION "lambda:InvokeFunction"
-      ON RESOURCE "arn:aws:lambda:::function:test-*"
-      WHERE NOT region == "ap-south-1";
+**DSL**
+
 ```
+ALLOW ROLE "QAEngineer"
+ACTION "lambda:InvokeFunction"
+ON RESOURCE "arn:aws:lambda:::function:test-*"
+WHERE NOT region == "ap-south-1";
+```
+
+**IAM Policy**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:*:*:function:test-*",
+      "Condition": {
+        "StringNotEquals": {
+          "aws:RequestedRegion": "ap-south-1"
+        }
+      }
+    }
+  ]
+}
+```
+
 
 ---
 
