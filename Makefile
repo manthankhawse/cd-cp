@@ -28,6 +28,7 @@ PARSER_H    = $(BUILD_DIR)/policy_parser.tab.h
 
 # Hand-written sources
 AST_C       = $(SRC_DIR)/ast.c
+SEMANTIC_C  = $(SRC_DIR)/semantic.c
 
 # Source specs
 LEXER_L     = $(SRC_DIR)/policy_lexer.l
@@ -46,9 +47,9 @@ all: dirs parser
 	@echo "✓  CloudPol compiler binary: $(COMPILER)"
 	@echo "   Usage: ./$(COMPILER) samples/valid_policy.pol"
 
-# ── Step 3: Build full compiler (parser + lexer + AST helper) ─────────────────
+# ── Step 4: Build full compiler (parser + lexer + AST + semantic) ─────────────
 parser: dirs $(PARSER_C) $(LEXER_C)
-	$(CC) $(CFLAGS) -o $(COMPILER) $(PARSER_C) $(LEXER_C) $(AST_C) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(COMPILER) $(PARSER_C) $(LEXER_C) $(AST_C) $(SEMANTIC_C) $(LDFLAGS)
 	@echo "✓  Parser build complete → $(COMPILER)"
 
 # ── Step 2: Standalone lexer (pretty-prints tokens, no parser needed) ─────────

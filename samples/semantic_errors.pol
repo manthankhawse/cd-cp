@@ -1,0 +1,49 @@
+// semantic_errors.pol — Semantic Analysis Test File
+// Tests SC-01 through SC-06 checks on syntactically valid but semantically
+// incorrect CloudPol policies.
+
+// SC-01: Unknown AWS action (not in dictionary)
+ALLOW ROLE "Tester"
+      ACTION "fakeservice:DoStuff"
+      ON RESOURCE "arn:aws:s3:::test-bucket";
+
+// SC-02: Malformed ARN (missing required colons)
+DENY ROLE "Tester"
+     ACTION "s3:GetObject"
+     ON RESOURCE "not-an-arn-at-all";
+
+// SC-03: Duplicate statement (exact role+action+resource+effect)
+ALLOW ROLE "Auditor"
+      ACTION "cloudtrail:LookupEvents"
+      ON RESOURCE "arn:aws:cloudtrail:::trail/*";
+
+ALLOW ROLE "Auditor"
+      ACTION "cloudtrail:LookupEvents"
+      ON RESOURCE "arn:aws:cloudtrail:::trail/*";
+
+// SC-04: Conflicting ALLOW/DENY for same triple
+ALLOW ROLE "DevOps"
+      ACTION "s3:PutObject"
+      ON RESOURCE "arn:aws:s3:::artifacts";
+
+DENY ROLE "DevOps"
+     ACTION "s3:PutObject"
+     ON RESOURCE "arn:aws:s3:::artifacts";
+
+// SC-05a: mfa must be TRUE/FALSE — string value is wrong type
+ALLOW ROLE "SRE"
+      ACTION "ec2:TerminateInstances"
+      ON RESOURCE "arn:aws:ec2:::instance/*"
+      WHERE mfa == "yes";
+
+// SC-05b: time must be numeric — string value is wrong type
+DENY ROLE "Contractor"
+     ACTION "s3:GetObject"
+     ON RESOURCE "arn:aws:s3:::data"
+     WHERE time == "midnight";
+
+// SC-05c: ip must look like an IPv4 address
+ALLOW ROLE "Engineer"
+      ACTION "ec2:DescribeInstances"
+      ON RESOURCE "arn:aws:ec2:::instance/*"
+      WHERE ip == "my-office";

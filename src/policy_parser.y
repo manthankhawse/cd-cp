@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../include/ast.h"
+#include "../include/semantic.h"
 
 extern int yylex(void);
 extern int yylineno;
@@ -213,10 +214,9 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    printf("[CloudPol Parser] Starting syntax analysis…\n");
-
+    /* ── Phase 1: Syntax Analysis ─────────────────────────────────── */
+    printf("[CloudPol] Phase 1: Syntax analysis…\n");
     int rc = yyparse();
-
     if (argc > 1) fclose(yyin);
 
     if (g_errors > 0 || rc != 0) {
@@ -237,8 +237,25 @@ int main(int argc, char *argv[]) {
     printf("[CloudPol Parser] Parse SUCCESSFUL — %d statement(s) parsed.\n",
            g_program ? g_program->count : 0);
 
+    /* Print AST */
     if (g_program) print_program_node(g_program);
+
+    /* ── Phase 2: Semantic Analysis ───────────────────────────────── */
+    printf("[CloudPol] Phase 2: Semantic analysis…\n");
+    SemanticResult *sem = analyze_program(g_program);
+    print_semantic_result(sem);
+    int sem_errors = sem ? sem->count : 0;
+    free_semantic_result(sem);
+
     if (g_program) free_program_node(g_program);
 
+    if (sem_errors > 0) {
+        fprintf(stderr,
+            "[CloudPol] Compilation FAILED — %d semantic error(s).\n",
+            sem_errors);
+        return 2;
+    }
+
+    printf("[CloudPol] Compilation SUCCESSFUL — policy is syntactically and semantically valid.\n");
     return 0;
 }

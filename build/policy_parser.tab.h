@@ -45,7 +45,7 @@
 extern int yydebug;
 #endif
 /* "%code requires" blocks.  */
-#line 48 "src/policy_parser.y"
+#line 49 "src/policy_parser.y"
 
     #include "../include/ast.h"
 
@@ -94,7 +94,7 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 55 "src/policy_parser.y"
+#line 56 "src/policy_parser.y"
 
     char          *sval;    /* STRING / NUMBER literals (heap-alloc)  */
     int            bval;    /* TRUE / FALSE                           */
