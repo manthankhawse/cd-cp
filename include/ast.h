@@ -24,12 +24,12 @@ typedef enum {
    Relational operators for WHERE conditions
 ───────────────────────────────────────────── */
 typedef enum {
-    OP_EQ,   /* == */
-    OP_NEQ,  /* != */
-    OP_LT,   /* <  */
-    OP_GT,   /* >  */
-    OP_LEQ,  /* <= */
-    OP_GEQ   /* >= */
+    REL_EQ,   /* == */
+    REL_NEQ,  /* != */
+    REL_LT,   /* <  */
+    REL_GT,   /* >  */
+    REL_LEQ,  /* <= */
+    REL_GEQ   /* >= */
 } RelOp;
 
 /* ─────────────────────────────────────────────

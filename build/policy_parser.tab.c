@@ -73,11 +73,19 @@
  * policy_parser.y — Bison Parser Specification for CloudPol DSL
  * Cloud Policy as Code DSL Compiler
  *
- * Step 2 STUB — Token declarations only.
- * Full grammar rules and AST construction actions are added in Step 3.
+ * Step 3: Complete Syntax Analysis + AST Construction
  *
- * This stub is required so that `flex` can compile `policy_lexer.l`:
- * Flex references the token codes and yylval union declared here.
+ * Grammar:
+ *   program    := statement*
+ *   statement  := effect ROLE STRING ACTION STRING ON RESOURCE STRING [WHERE condition] ;
+ *   condition  := simple_cond
+ *              |  condition AND condition
+ *              |  condition OR  condition
+ *              |  NOT simple_cond
+ *   simple_cond := attribute rel_op value
+ *   attribute  := ip | time | mfa | region | tag
+ *   rel_op     := == | != | < | > | <= | >=
+ *   value      := STRING | NUMBER | TRUE | FALSE
  */
 
 #include <stdio.h>
@@ -85,20 +93,23 @@
 #include <string.h>
 #include "../include/ast.h"
 
-/* Error handler called by Bison on syntax errors */
+extern int yylex(void);
+extern int yylineno;
+extern int yycolno;
+
+/* ── Parser state ────────────────────────────────────────────── */
+static ProgramNode *g_program = NULL;
+static int          g_errors  = 0;
+
 void yyerror(const char *msg) {
-    extern int yylineno;
-    extern int yycolno;
     fprintf(stderr,
         "[CloudPol Parser] SYNTAX ERROR line %d:%d — %s\n",
         yylineno, yycolno, msg);
+    g_errors++;
 }
 
-/* Entry point declared by Bison */
-extern int yylex(void);
 
-
-#line 102 "build/policy_parser.tab.c"
+#line 113 "build/policy_parser.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -158,11 +169,12 @@ enum yysymbol_kind_t
   YYSYMBOL_YYACCEPT = 29,                  /* $accept  */
   YYSYMBOL_program = 30,                   /* program  */
   YYSYMBOL_statement = 31,                 /* statement  */
-  YYSYMBOL_condition = 32,                 /* condition  */
-  YYSYMBOL_simple_cond = 33,               /* simple_cond  */
-  YYSYMBOL_attribute = 34,                 /* attribute  */
-  YYSYMBOL_rel_op = 35,                    /* rel_op  */
-  YYSYMBOL_value = 36                      /* value  */
+  YYSYMBOL_effect = 32,                    /* effect  */
+  YYSYMBOL_condition = 33,                 /* condition  */
+  YYSYMBOL_simple_cond = 34,               /* simple_cond  */
+  YYSYMBOL_attr_str = 35,                  /* attr_str  */
+  YYSYMBOL_rel_op = 36,                    /* rel_op  */
+  YYSYMBOL_value = 37                      /* value  */
 };
 typedef enum yysymbol_kind_t yysymbol_kind_t;
 
@@ -490,16 +502,16 @@ union yyalloc
 /* YYFINAL -- State number of the termination state.  */
 #define YYFINAL  2
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   52
+#define YYLAST   41
 
 /* YYNTOKENS -- Number of terminals.  */
 #define YYNTOKENS  29
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  8
+#define YYNNTS  9
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  27
+#define YYNRULES  28
 /* YYNSTATES -- Number of states.  */
-#define YYNSTATES  53
+#define YYNSTATES  45
 
 /* YYMAXUTOK -- Last valid token kind.  */
 #define YYMAXUTOK   283
@@ -551,9 +563,9 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,   106,   106,   107,   111,   117,   122,   127,   135,   136,
-     137,   138,   142,   146,   147,   148,   149,   150,   154,   155,
-     156,   157,   158,   159,   163,   164,   165,   166
+       0,   119,   119,   121,   130,   135,   141,   149,   150,   154,
+     157,   160,   163,   168,   176,   177,   178,   179,   180,   184,
+     185,   186,   187,   188,   189,   193,   194,   195,   196
 };
 #endif
 
@@ -574,7 +586,7 @@ static const char *const yytname[] =
   "KW_OR", "KW_NOT", "KW_TRUE", "KW_FALSE", "ATTR_IP", "ATTR_TIME",
   "ATTR_MFA", "ATTR_REGION", "ATTR_TAG", "OP_EQ", "OP_NEQ", "OP_LT",
   "OP_GT", "OP_LEQ", "OP_GEQ", "SEMICOLON", "STRING", "NUMBER", "$accept",
-  "program", "statement", "condition", "simple_cond", "attribute",
+  "program", "statement", "effect", "condition", "simple_cond", "attr_str",
   "rel_op", "value", YY_NULLPTR
 };
 
@@ -585,7 +597,7 @@ yysymbol_name (yysymbol_kind_t yysymbol)
 }
 #endif
 
-#define YYPACT_NINF (-21)
+#define YYPACT_NINF (-26)
 
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
@@ -599,12 +611,11 @@ yysymbol_name (yysymbol_kind_t yysymbol)
    STATE-NUM.  */
 static const yytype_int8 yypact[] =
 {
-     -21,     8,   -21,     2,     9,   -21,   -14,     3,    14,    36,
-      16,    17,    38,    39,    40,    41,    20,    23,    -9,    -8,
-      10,   -21,    10,   -21,    22,   -21,   -21,   -21,   -21,   -21,
-      -7,   -21,    11,    -5,   -21,    10,    10,   -21,   -21,   -21,
-     -21,   -21,   -21,   -21,    -4,   -21,   -21,    42,   -21,   -21,
-     -21,   -21,   -21
+     -26,    33,   -26,   -25,   -26,   -26,   -26,     4,   -26,   -17,
+      10,     8,    12,    30,    14,    -9,    -4,   -26,    13,   -26,
+     -26,   -26,   -26,   -26,    -8,   -26,     2,   -26,    -4,    -4,
+     -26,   -26,   -26,   -26,   -26,   -26,   -26,    -7,   -26,    29,
+     -26,   -26,   -26,   -26,   -26
 };
 
 /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -612,24 +623,23 @@ static const yytype_int8 yypact[] =
    means the default is an error.  */
 static const yytype_int8 yydefact[] =
 {
-       2,     0,     1,     0,     0,     3,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     4,     0,     5,     0,    13,    14,    15,    16,    17,
-       0,     8,     0,     0,    11,     0,     0,     6,    18,    19,
-      20,    21,    22,    23,     0,     7,     9,    10,    26,    27,
-      24,    25,    12
+       2,     0,     1,     0,     7,     8,     3,     0,     4,     0,
+       0,     0,     0,     0,     0,     0,     0,     5,     0,    14,
+      15,    16,    17,    18,     0,     9,     0,    12,     0,     0,
+       6,    19,    20,    21,    22,    23,    24,     0,    10,    11,
+      27,    28,    25,    26,    13
 };
 
 /* YYPGOTO[NTERM-NUM].  */
 static const yytype_int8 yypgoto[] =
 {
-     -21,   -21,   -21,   -20,    27,   -21,   -21,   -21
+     -26,   -26,   -26,   -26,   -24,    22,   -26,   -26,   -26
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-       0,     1,     5,    30,    31,    32,    44,    52
+       0,     1,     6,     7,    24,    25,    26,    37,    44
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
@@ -637,50 +647,47 @@ static const yytype_int8 yydefgoto[] =
    number is the opposite.  If YYTABLE_NINF, syntax error.  */
 static const yytype_int8 yytable[] =
 {
-      20,    22,    33,    35,    36,    35,    36,     6,     2,    48,
-      49,     3,     4,     8,     7,    46,    47,    21,    23,    37,
-      10,    45,    24,    50,    51,    25,    26,    27,    28,    29,
-       9,    38,    39,    40,    41,    42,    43,    25,    26,    27,
-      28,    29,    11,    12,    13,    14,    15,    18,    16,    17,
-      19,    34,    35
+      16,     8,    28,    29,    38,    39,    40,    41,    18,     9,
+      10,    19,    20,    21,    22,    23,    11,    17,    30,    13,
+      42,    43,    31,    32,    33,    34,    35,    36,    19,    20,
+      21,    22,    23,     2,     3,    12,     4,     5,    14,    28,
+      27,    15
 };
 
 static const yytype_int8 yycheck[] =
 {
-       9,     9,    22,    10,    11,    10,    11,     5,     0,    13,
-      14,     3,     4,    27,     5,    35,    36,    26,    26,    26,
-       6,    26,    12,    27,    28,    15,    16,    17,    18,    19,
-      27,    20,    21,    22,    23,    24,    25,    15,    16,    17,
-      18,    19,     6,    27,    27,     7,     7,    27,     8,     8,
-      27,    24,    10
+       9,    26,    10,    11,    28,    29,    13,    14,    12,     5,
+      27,    15,    16,    17,    18,    19,     6,    26,    26,     7,
+      27,    28,    20,    21,    22,    23,    24,    25,    15,    16,
+      17,    18,    19,     0,     1,    27,     3,     4,     8,    10,
+      18,    27
 };
 
 /* YYSTOS[STATE-NUM] -- The symbol kind of the accessing symbol of
    state STATE-NUM.  */
 static const yytype_int8 yystos[] =
 {
-       0,    30,     0,     3,     4,    31,     5,     5,    27,    27,
-       6,     6,    27,    27,     7,     7,     8,     8,    27,    27,
-       9,    26,     9,    26,    12,    15,    16,    17,    18,    19,
-      32,    33,    34,    32,    33,    10,    11,    26,    20,    21,
-      22,    23,    24,    25,    35,    26,    32,    32,    13,    14,
-      27,    28,    36
+       0,    30,     0,     1,     3,     4,    31,    32,    26,     5,
+      27,     6,    27,     7,     8,    27,     9,    26,    12,    15,
+      16,    17,    18,    19,    33,    34,    35,    34,    10,    11,
+      26,    20,    21,    22,    23,    24,    25,    36,    33,    33,
+      13,    14,    27,    28,    37
 };
 
 /* YYR1[RULE-NUM] -- Symbol kind of the left-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr1[] =
 {
-       0,    29,    30,    30,    31,    31,    31,    31,    32,    32,
-      32,    32,    33,    34,    34,    34,    34,    34,    35,    35,
-      35,    35,    35,    35,    36,    36,    36,    36
+       0,    29,    30,    30,    30,    31,    31,    32,    32,    33,
+      33,    33,    33,    34,    35,    35,    35,    35,    35,    36,
+      36,    36,    36,    36,    36,    37,    37,    37,    37
 };
 
 /* YYR2[RULE-NUM] -- Number of symbols on the right-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr2[] =
 {
-       0,     2,     0,     2,     9,     9,    11,    11,     1,     3,
-       3,     2,     3,     1,     1,     1,     1,     1,     1,     1,
-       1,     1,     1,     1,     1,     1,     1,     1
+       0,     2,     0,     2,     3,     9,    11,     1,     1,     1,
+       3,     3,     2,     3,     1,     1,     1,     1,     1,     1,
+       1,     1,     1,     1,     1,     1,     1,     1,     1
 };
 
 
@@ -1143,165 +1150,185 @@ yyreduce:
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
-  case 4: /* statement: KW_ALLOW KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON  */
-#line 112 "src/policy_parser.y"
+  case 2: /* program: %empty  */
+#line 119 "src/policy_parser.y"
+        { g_program = (ProgramNode *)calloc(1, sizeof(ProgramNode)); }
+#line 1157 "build/policy_parser.tab.c"
+    break;
+
+  case 3: /* program: program statement  */
+#line 122 "src/policy_parser.y"
         {
-            /* Step 3: build StatementNode and attach to program */
-            printf("[Parser stub] Parsed ALLOW statement for role '%s'\n", (yyvsp[-6].sval));
-            free((yyvsp[-6].sval)); free((yyvsp[-4].sval)); free((yyvsp[-1].sval));
+            if ((yyvsp[0].stmt)) {
+                (yyvsp[0].stmt)->next              = g_program->statements;
+                g_program->statements = (yyvsp[0].stmt);
+                g_program->count++;
+            }
         }
-#line 1154 "build/policy_parser.tab.c"
+#line 1169 "build/policy_parser.tab.c"
     break;
 
-  case 5: /* statement: KW_DENY KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON  */
-#line 118 "src/policy_parser.y"
-        {
-            printf("[Parser stub] Parsed DENY statement for role '%s'\n", (yyvsp[-6].sval));
-            free((yyvsp[-6].sval)); free((yyvsp[-4].sval)); free((yyvsp[-1].sval));
-        }
-#line 1163 "build/policy_parser.tab.c"
+  case 4: /* program: program error SEMICOLON  */
+#line 131 "src/policy_parser.y"
+        { yyerrok; }
+#line 1175 "build/policy_parser.tab.c"
     break;
 
-  case 6: /* statement: KW_ALLOW KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON  */
-#line 123 "src/policy_parser.y"
-        {
-            printf("[Parser stub] Parsed ALLOW+WHERE statement for role '%s'\n", (yyvsp[-8].sval));
-            free((yyvsp[-8].sval)); free((yyvsp[-6].sval)); free((yyvsp[-3].sval));
-        }
-#line 1172 "build/policy_parser.tab.c"
-    break;
-
-  case 7: /* statement: KW_DENY KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON  */
-#line 128 "src/policy_parser.y"
-        {
-            printf("[Parser stub] Parsed DENY+WHERE statement for role '%s'\n", (yyvsp[-8].sval));
-            free((yyvsp[-8].sval)); free((yyvsp[-6].sval)); free((yyvsp[-3].sval));
-        }
-#line 1181 "build/policy_parser.tab.c"
-    break;
-
-  case 8: /* condition: simple_cond  */
-#line 135 "src/policy_parser.y"
-                                          { /* Step 3 */ }
-#line 1187 "build/policy_parser.tab.c"
-    break;
-
-  case 9: /* condition: condition KW_AND condition  */
+  case 5: /* statement: effect KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON  */
 #line 136 "src/policy_parser.y"
-                                          { /* Step 3 */ }
+        {
+            (yyval.stmt) = make_statement((Effect)(yyvsp[-8].eval), (yyvsp[-6].sval), (yyvsp[-4].sval), (yyvsp[-1].sval), NULL, yylineno);
+            free((yyvsp[-6].sval)); free((yyvsp[-4].sval)); free((yyvsp[-1].sval));
+        }
+#line 1184 "build/policy_parser.tab.c"
+    break;
+
+  case 6: /* statement: effect KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON  */
+#line 142 "src/policy_parser.y"
+        {
+            (yyval.stmt) = make_statement((Effect)(yyvsp[-10].eval), (yyvsp[-8].sval), (yyvsp[-6].sval), (yyvsp[-3].sval), (yyvsp[-1].cond), yylineno);
+            free((yyvsp[-8].sval)); free((yyvsp[-6].sval)); free((yyvsp[-3].sval));
+        }
 #line 1193 "build/policy_parser.tab.c"
     break;
 
-  case 10: /* condition: condition KW_OR condition  */
-#line 137 "src/policy_parser.y"
-                                          { /* Step 3 */ }
+  case 7: /* effect: KW_ALLOW  */
+#line 149 "src/policy_parser.y"
+                { (yyval.eval) = (int)EFFECT_ALLOW; }
 #line 1199 "build/policy_parser.tab.c"
     break;
 
-  case 11: /* condition: KW_NOT simple_cond  */
-#line 138 "src/policy_parser.y"
-                                          { /* Step 3 */ }
+  case 8: /* effect: KW_DENY  */
+#line 150 "src/policy_parser.y"
+                { (yyval.eval) = (int)EFFECT_DENY;  }
 #line 1205 "build/policy_parser.tab.c"
     break;
 
-  case 12: /* simple_cond: attribute rel_op value  */
-#line 142 "src/policy_parser.y"
-                                          { /* Step 3 */ }
+  case 9: /* condition: simple_cond  */
+#line 155 "src/policy_parser.y"
+        { (yyval.cond) = (yyvsp[0].cond); }
 #line 1211 "build/policy_parser.tab.c"
     break;
 
-  case 13: /* attribute: ATTR_IP  */
-#line 146 "src/policy_parser.y"
-                  { /* Step 3 */ }
+  case 10: /* condition: condition KW_AND condition  */
+#line 158 "src/policy_parser.y"
+        { (yyval.cond) = make_compound_cond(LOG_AND, (yyvsp[-2].cond), (yyvsp[0].cond)); }
 #line 1217 "build/policy_parser.tab.c"
     break;
 
-  case 14: /* attribute: ATTR_TIME  */
-#line 147 "src/policy_parser.y"
-                  { /* Step 3 */ }
+  case 11: /* condition: condition KW_OR condition  */
+#line 161 "src/policy_parser.y"
+        { (yyval.cond) = make_compound_cond(LOG_OR,  (yyvsp[-2].cond), (yyvsp[0].cond)); }
 #line 1223 "build/policy_parser.tab.c"
     break;
 
-  case 15: /* attribute: ATTR_MFA  */
-#line 148 "src/policy_parser.y"
-                  { /* Step 3 */ }
+  case 12: /* condition: KW_NOT simple_cond  */
+#line 164 "src/policy_parser.y"
+        { (yyval.cond) = make_compound_cond(LOG_NOT, (yyvsp[0].cond), NULL); }
 #line 1229 "build/policy_parser.tab.c"
     break;
 
-  case 16: /* attribute: ATTR_REGION  */
-#line 149 "src/policy_parser.y"
-                  { /* Step 3 */ }
-#line 1235 "build/policy_parser.tab.c"
+  case 13: /* simple_cond: attr_str rel_op value  */
+#line 169 "src/policy_parser.y"
+        {
+            (yyval.cond) = make_simple_cond((yyvsp[-2].sval), (RelOp)(yyvsp[-1].rval), (yyvsp[0].sval));
+            free((yyvsp[0].sval));
+        }
+#line 1238 "build/policy_parser.tab.c"
     break;
 
-  case 17: /* attribute: ATTR_TAG  */
-#line 150 "src/policy_parser.y"
-                  { /* Step 3 */ }
-#line 1241 "build/policy_parser.tab.c"
+  case 14: /* attr_str: ATTR_IP  */
+#line 176 "src/policy_parser.y"
+                  { (yyval.sval) = "ip";     }
+#line 1244 "build/policy_parser.tab.c"
     break;
 
-  case 18: /* rel_op: OP_EQ  */
-#line 154 "src/policy_parser.y"
-              { /* Step 3 */ }
-#line 1247 "build/policy_parser.tab.c"
+  case 15: /* attr_str: ATTR_TIME  */
+#line 177 "src/policy_parser.y"
+                  { (yyval.sval) = "time";   }
+#line 1250 "build/policy_parser.tab.c"
     break;
 
-  case 19: /* rel_op: OP_NEQ  */
-#line 155 "src/policy_parser.y"
-              { /* Step 3 */ }
-#line 1253 "build/policy_parser.tab.c"
+  case 16: /* attr_str: ATTR_MFA  */
+#line 178 "src/policy_parser.y"
+                  { (yyval.sval) = "mfa";    }
+#line 1256 "build/policy_parser.tab.c"
     break;
 
-  case 20: /* rel_op: OP_LT  */
-#line 156 "src/policy_parser.y"
-              { /* Step 3 */ }
-#line 1259 "build/policy_parser.tab.c"
+  case 17: /* attr_str: ATTR_REGION  */
+#line 179 "src/policy_parser.y"
+                  { (yyval.sval) = "region"; }
+#line 1262 "build/policy_parser.tab.c"
     break;
 
-  case 21: /* rel_op: OP_GT  */
-#line 157 "src/policy_parser.y"
-              { /* Step 3 */ }
-#line 1265 "build/policy_parser.tab.c"
+  case 18: /* attr_str: ATTR_TAG  */
+#line 180 "src/policy_parser.y"
+                  { (yyval.sval) = "tag";    }
+#line 1268 "build/policy_parser.tab.c"
     break;
 
-  case 22: /* rel_op: OP_LEQ  */
-#line 158 "src/policy_parser.y"
-              { /* Step 3 */ }
-#line 1271 "build/policy_parser.tab.c"
+  case 19: /* rel_op: OP_EQ  */
+#line 184 "src/policy_parser.y"
+              { (yyval.rval) = (int)REL_EQ;  }
+#line 1274 "build/policy_parser.tab.c"
     break;
 
-  case 23: /* rel_op: OP_GEQ  */
-#line 159 "src/policy_parser.y"
-              { /* Step 3 */ }
-#line 1277 "build/policy_parser.tab.c"
+  case 20: /* rel_op: OP_NEQ  */
+#line 185 "src/policy_parser.y"
+              { (yyval.rval) = (int)REL_NEQ; }
+#line 1280 "build/policy_parser.tab.c"
     break;
 
-  case 24: /* value: STRING  */
-#line 163 "src/policy_parser.y"
-                { /* Step 3 */ }
-#line 1283 "build/policy_parser.tab.c"
+  case 21: /* rel_op: OP_LT  */
+#line 186 "src/policy_parser.y"
+              { (yyval.rval) = (int)REL_LT;  }
+#line 1286 "build/policy_parser.tab.c"
     break;
 
-  case 25: /* value: NUMBER  */
-#line 164 "src/policy_parser.y"
-                { /* Step 3 */ }
-#line 1289 "build/policy_parser.tab.c"
+  case 22: /* rel_op: OP_GT  */
+#line 187 "src/policy_parser.y"
+              { (yyval.rval) = (int)REL_GT;  }
+#line 1292 "build/policy_parser.tab.c"
     break;
 
-  case 26: /* value: KW_TRUE  */
-#line 165 "src/policy_parser.y"
-                { /* Step 3 */ }
-#line 1295 "build/policy_parser.tab.c"
+  case 23: /* rel_op: OP_LEQ  */
+#line 188 "src/policy_parser.y"
+              { (yyval.rval) = (int)REL_LEQ; }
+#line 1298 "build/policy_parser.tab.c"
     break;
 
-  case 27: /* value: KW_FALSE  */
-#line 166 "src/policy_parser.y"
-                { /* Step 3 */ }
-#line 1301 "build/policy_parser.tab.c"
+  case 24: /* rel_op: OP_GEQ  */
+#line 189 "src/policy_parser.y"
+              { (yyval.rval) = (int)REL_GEQ; }
+#line 1304 "build/policy_parser.tab.c"
+    break;
+
+  case 25: /* value: STRING  */
+#line 193 "src/policy_parser.y"
+                { (yyval.sval) = (yyvsp[0].sval);              }
+#line 1310 "build/policy_parser.tab.c"
+    break;
+
+  case 26: /* value: NUMBER  */
+#line 194 "src/policy_parser.y"
+                { (yyval.sval) = (yyvsp[0].sval);              }
+#line 1316 "build/policy_parser.tab.c"
+    break;
+
+  case 27: /* value: KW_TRUE  */
+#line 195 "src/policy_parser.y"
+                { (yyval.sval) = strdup("TRUE");  }
+#line 1322 "build/policy_parser.tab.c"
+    break;
+
+  case 28: /* value: KW_FALSE  */
+#line 196 "src/policy_parser.y"
+                { (yyval.sval) = strdup("FALSE"); }
+#line 1328 "build/policy_parser.tab.c"
     break;
 
 
-#line 1305 "build/policy_parser.tab.c"
+#line 1332 "build/policy_parser.tab.c"
 
       default: break;
     }
@@ -1494,5 +1521,50 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 169 "src/policy_parser.y"
+#line 199 "src/policy_parser.y"
 
+
+/* ═════════════════════════════════════════════════════════════
+   ENTRY POINT
+═════════════════════════════════════════════════════════════ */
+
+int main(int argc, char *argv[]) {
+    extern FILE *yyin;
+
+    if (argc > 1) {
+        yyin = fopen(argv[1], "r");
+        if (!yyin) {
+            fprintf(stderr, "[CloudPol] Error: cannot open '%s'\n", argv[1]);
+            return 1;
+        }
+    }
+
+    printf("[CloudPol Parser] Starting syntax analysis…\n");
+
+    int rc = yyparse();
+
+    if (argc > 1) fclose(yyin);
+
+    if (g_errors > 0 || rc != 0) {
+        fprintf(stderr,
+            "[CloudPol Parser] Parse FAILED — %d error(s) encountered.\n",
+            g_errors);
+        if (g_program) free_program_node(g_program);
+        return 1;
+    }
+
+    /* Reverse statement list to restore source order */
+    if (g_program) {
+        StatementNode *prev = NULL, *cur = g_program->statements, *nxt;
+        while (cur) { nxt = cur->next; cur->next = prev; prev = cur; cur = nxt; }
+        g_program->statements = prev;
+    }
+
+    printf("[CloudPol Parser] Parse SUCCESSFUL — %d statement(s) parsed.\n",
+           g_program ? g_program->count : 0);
+
+    if (g_program) print_program_node(g_program);
+    if (g_program) free_program_node(g_program);
+
+    return 0;
+}

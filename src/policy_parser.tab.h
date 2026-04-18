@@ -44,6 +44,12 @@
 #if YYDEBUG
 extern int yydebug;
 #endif
+/* "%code requires" blocks.  */
+#line 48 "src/policy_parser.y"
+
+    #include "../include/ast.h"
+
+#line 53 "build/policy_parser.tab.h"
 
 /* Token kinds.  */
 #ifndef YYTOKENTYPE
@@ -88,16 +94,16 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 35 "src/policy_parser.y"
+#line 55 "src/policy_parser.y"
 
-    char     *sval;    /* STRING and NUMBER literals       */
-    int       bval;    /* TRUE / FALSE boolean literals    */
-    /* The fields below will be populated in Step 3 */
-    /* CondNode      *cond; */
-    /* StatementNode *stmt; */
-    /* ProgramNode   *prog; */
+    char          *sval;    /* STRING / NUMBER literals (heap-alloc)  */
+    int            bval;    /* TRUE / FALSE                           */
+    int            rval;    /* relational operator (RelOp cast)       */
+    int            eval;    /* effect (Effect cast)                   */
+    CondNode      *cond;    /* condition sub-tree                     */
+    StatementNode *stmt;    /* single policy statement                */
 
-#line 101 "build/policy_parser.tab.h"
+#line 107 "build/policy_parser.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

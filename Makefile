@@ -3,10 +3,10 @@
 # Cloud Policy as Code DSL Compiler
 #
 # Targets:
-#   make all          Build the full compiler (lexer + parser)
+#   make all          Build the full compiler (lexer + parser + AST)
 #   make lexer        Build only the lexer (standalone test mode)
 #   make lexer-test   Build lexer in standalone mode for token pretty-printing
-#   make parser       Build lexer + parser together (Step 2 stub)
+#   make parser       Build lexer + parser (Step 3 — full AST)
 #   make clean        Remove all generated files
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -26,6 +26,9 @@ LEXER_C     = $(BUILD_DIR)/lex.yy.c
 PARSER_C    = $(BUILD_DIR)/policy_parser.tab.c
 PARSER_H    = $(BUILD_DIR)/policy_parser.tab.h
 
+# Hand-written sources
+AST_C       = $(SRC_DIR)/ast.c
+
 # Source specs
 LEXER_L     = $(SRC_DIR)/policy_lexer.l
 PARSER_Y    = $(SRC_DIR)/policy_parser.y
@@ -41,10 +44,11 @@ LEXER_BIN   = $(BUILD_DIR)/policy_lexer
 all: dirs parser
 	@echo ""
 	@echo "✓  CloudPol compiler binary: $(COMPILER)"
+	@echo "   Usage: ./$(COMPILER) samples/valid_policy.pol"
 
-# ── Step 2: Build both lexer and parser stub ──────────────────────────────────
+# ── Step 3: Build full compiler (parser + lexer + AST helper) ─────────────────
 parser: dirs $(PARSER_C) $(LEXER_C)
-	$(CC) $(CFLAGS) -o $(COMPILER) $(PARSER_C) $(LEXER_C) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(COMPILER) $(PARSER_C) $(LEXER_C) $(AST_C) $(LDFLAGS)
 	@echo "✓  Parser build complete → $(COMPILER)"
 
 # ── Step 2: Standalone lexer (pretty-prints tokens, no parser needed) ─────────
@@ -86,7 +90,7 @@ clean:
 # ── Help ──────────────────────────────────────────────────────────────────────
 help:
 	@echo "CloudPol Compiler — Makefile targets"
-	@echo "  make all          Build the full compiler"
-	@echo "  make lexer-test   Build standalone lexer token printer"
-	@echo "  make parser       Build lexer + parser stub (Step 2)"
+	@echo "  make all          Build the full compiler (Step 3)"
+	@echo "  make lexer-test   Build standalone lexer token printer (Step 2)"
+	@echo "  make parser       Build lexer + full parser with AST (Step 3)"
 	@echo "  make clean        Remove build artifacts"

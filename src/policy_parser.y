@@ -3,11 +3,19 @@
  * policy_parser.y — Bison Parser Specification for CloudPol DSL
  * Cloud Policy as Code DSL Compiler
  *
- * Step 2 STUB — Token declarations only.
- * Full grammar rules and AST construction actions are added in Step 3.
+ * Step 3: Complete Syntax Analysis + AST Construction
  *
- * This stub is required so that `flex` can compile `policy_lexer.l`:
- * Flex references the token codes and yylval union declared here.
+ * Grammar:
+ *   program    := statement*
+ *   statement  := effect ROLE STRING ACTION STRING ON RESOURCE STRING [WHERE condition] ;
+ *   condition  := simple_cond
+ *              |  condition AND condition
+ *              |  condition OR  condition
+ *              |  NOT simple_cond
+ *   simple_cond := attribute rel_op value
+ *   attribute  := ip | time | mfa | region | tag
+ *   rel_op     := == | != | < | > | <= | >=
+ *   value      := STRING | NUMBER | TRUE | FALSE
  */
 
 #include <stdio.h>
@@ -15,155 +23,222 @@
 #include <string.h>
 #include "../include/ast.h"
 
-/* Error handler called by Bison on syntax errors */
+extern int yylex(void);
+extern int yylineno;
+extern int yycolno;
+
+/* ── Parser state ────────────────────────────────────────────── */
+static ProgramNode *g_program = NULL;
+static int          g_errors  = 0;
+
 void yyerror(const char *msg) {
-    extern int yylineno;
-    extern int yycolno;
     fprintf(stderr,
         "[CloudPol Parser] SYNTAX ERROR line %d:%d — %s\n",
         yylineno, yycolno, msg);
+    g_errors++;
 }
-
-/* Entry point declared by Bison */
-extern int yylex(void);
 
 %}
 
-/* ─────────────────────────────────────────────────────────────────
-   Semantic value union — types that tokens carry through the parse
-───────────────────────────────────────────────────────────────────*/
-%union {
-    char     *sval;    /* STRING and NUMBER literals       */
-    int       bval;    /* TRUE / FALSE boolean literals    */
-    /* The fields below will be populated in Step 3 */
-    /* CondNode      *cond; */
-    /* StatementNode *stmt; */
-    /* ProgramNode   *prog; */
+/* ─────────────────────────────────────────────────────────────
+   %code requires — emitted into the generated header BEFORE the
+   YYSTYPE union definition, so that both the parser and the lexer
+   (which #includes policy_parser.tab.h) see CondNode/StatementNode.
+───────────────────────────────────────────────────────────────*/
+%code requires {
+    #include "../include/ast.h"
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   Token declarations  (must match exactly what policy_lexer.l emits)
-───────────────────────────────────────────────────────────────────*/
+/* ─────────────────────────────────────────────────────────────
+   Semantic value union
+───────────────────────────────────────────────────────────────*/
+%union {
+    char          *sval;    /* STRING / NUMBER literals (heap-alloc)  */
+    int            bval;    /* TRUE / FALSE                           */
+    int            rval;    /* relational operator (RelOp cast)       */
+    int            eval;    /* effect (Effect cast)                   */
+    CondNode      *cond;    /* condition sub-tree                     */
+    StatementNode *stmt;    /* single policy statement                */
+}
 
-/* Effect keywords */
+/* ─────────────────────────────────────────────────────────────
+   Token declarations
+─────────────────────────────────────────────────────────────*/
 %token KW_ALLOW
 %token KW_DENY
-
-/* Structural keywords */
 %token KW_ROLE
 %token KW_ACTION
 %token KW_ON
 %token KW_RESOURCE
 %token KW_WHERE
-
-/* Logical operators */
 %token KW_AND
 %token KW_OR
 %token KW_NOT
-
-/* Boolean literals — carry an int value */
 %token <bval> KW_TRUE
 %token <bval> KW_FALSE
-
-/* Attribute keywords (WHERE clause LHS) */
 %token ATTR_IP
 %token ATTR_TIME
 %token ATTR_MFA
 %token ATTR_REGION
 %token ATTR_TAG
-
-/* Relational operators */
 %token OP_EQ
 %token OP_NEQ
 %token OP_LT
 %token OP_GT
 %token OP_LEQ
 %token OP_GEQ
-
-/* Punctuation */
 %token SEMICOLON
-
-/* Value tokens — carry a heap-allocated string */
 %token <sval> STRING
 %token <sval> NUMBER
 
-/* ─────────────────────────────────────────────────────────────────
-   Operator precedence (for condition expressions)
-   Lower declarations bind tighter.
-───────────────────────────────────────────────────────────────────*/
+/* ─────────────────────────────────────────────────────────────
+   Non-terminal types
+─────────────────────────────────────────────────────────────*/
+%type <eval>  effect
+%type <rval>  rel_op
+%type <cond>  condition simple_cond
+%type <stmt>  statement
+%type <sval>  value attr_str
+
+/* ─────────────────────────────────────────────────────────────
+   Operator precedence — lowest to highest binding
+   OR < AND < NOT
+─────────────────────────────────────────────────────────────*/
 %left  KW_OR
 %left  KW_AND
 %right KW_NOT
 
 %%
 
-/* ═════════════════════════════════════════════════════════════════
-   GRAMMAR RULES  (Step 3 — to be filled in)
-   Placeholder rule keeps Bison happy during Step 2 testing.
-═════════════════════════════════════════════════════════════════ */
+/* ═════════════════════════════════════════════════════════════
+   GRAMMAR RULES
+═════════════════════════════════════════════════════════════ */
 
 program
     : /* empty */
+        { g_program = (ProgramNode *)calloc(1, sizeof(ProgramNode)); }
+
     | program statement
+        {
+            if ($2) {
+                $2->next              = g_program->statements;
+                g_program->statements = $2;
+                g_program->count++;
+            }
+        }
+
+    | program error SEMICOLON
+        { yyerrok; }
     ;
 
 statement
-    : KW_ALLOW KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON
+    : effect KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON
         {
-            /* Step 3: build StatementNode and attach to program */
-            printf("[Parser stub] Parsed ALLOW statement for role '%s'\n", $3);
+            $$ = make_statement((Effect)$1, $3, $5, $8, NULL, yylineno);
             free($3); free($5); free($8);
         }
-    | KW_DENY KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON
+
+    | effect KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON
         {
-            printf("[Parser stub] Parsed DENY statement for role '%s'\n", $3);
+            $$ = make_statement((Effect)$1, $3, $5, $8, $10, yylineno);
             free($3); free($5); free($8);
         }
-    | KW_ALLOW KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON
-        {
-            printf("[Parser stub] Parsed ALLOW+WHERE statement for role '%s'\n", $3);
-            free($3); free($5); free($8);
-        }
-    | KW_DENY KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON
-        {
-            printf("[Parser stub] Parsed DENY+WHERE statement for role '%s'\n", $3);
-            free($3); free($5); free($8);
-        }
+    ;
+
+effect
+    : KW_ALLOW  { $$ = (int)EFFECT_ALLOW; }
+    | KW_DENY   { $$ = (int)EFFECT_DENY;  }
     ;
 
 condition
-    : simple_cond                         { /* Step 3 */ }
-    | condition KW_AND condition          { /* Step 3 */ }
-    | condition KW_OR  condition          { /* Step 3 */ }
-    | KW_NOT simple_cond                  { /* Step 3 */ }
+    : simple_cond
+        { $$ = $1; }
+
+    | condition KW_AND condition
+        { $$ = make_compound_cond(LOG_AND, $1, $3); }
+
+    | condition KW_OR  condition
+        { $$ = make_compound_cond(LOG_OR,  $1, $3); }
+
+    | KW_NOT simple_cond
+        { $$ = make_compound_cond(LOG_NOT, $2, NULL); }
     ;
 
 simple_cond
-    : attribute rel_op value              { /* Step 3 */ }
+    : attr_str rel_op value
+        {
+            $$ = make_simple_cond($1, (RelOp)$2, $3);
+            free($3);
+        }
     ;
 
-attribute
-    : ATTR_IP     { /* Step 3 */ }
-    | ATTR_TIME   { /* Step 3 */ }
-    | ATTR_MFA    { /* Step 3 */ }
-    | ATTR_REGION { /* Step 3 */ }
-    | ATTR_TAG    { /* Step 3 */ }
+attr_str
+    : ATTR_IP     { $$ = "ip";     }
+    | ATTR_TIME   { $$ = "time";   }
+    | ATTR_MFA    { $$ = "mfa";    }
+    | ATTR_REGION { $$ = "region"; }
+    | ATTR_TAG    { $$ = "tag";    }
     ;
 
 rel_op
-    : OP_EQ   { /* Step 3 */ }
-    | OP_NEQ  { /* Step 3 */ }
-    | OP_LT   { /* Step 3 */ }
-    | OP_GT   { /* Step 3 */ }
-    | OP_LEQ  { /* Step 3 */ }
-    | OP_GEQ  { /* Step 3 */ }
+    : OP_EQ   { $$ = (int)REL_EQ;  }
+    | OP_NEQ  { $$ = (int)REL_NEQ; }
+    | OP_LT   { $$ = (int)REL_LT;  }
+    | OP_GT   { $$ = (int)REL_GT;  }
+    | OP_LEQ  { $$ = (int)REL_LEQ; }
+    | OP_GEQ  { $$ = (int)REL_GEQ; }
     ;
 
 value
-    : STRING    { /* Step 3 */ }
-    | NUMBER    { /* Step 3 */ }
-    | KW_TRUE   { /* Step 3 */ }
-    | KW_FALSE  { /* Step 3 */ }
+    : STRING    { $$ = $1;              }
+    | NUMBER    { $$ = $1;              }
+    | KW_TRUE   { $$ = strdup("TRUE");  }
+    | KW_FALSE  { $$ = strdup("FALSE"); }
     ;
 
 %%
+
+/* ═════════════════════════════════════════════════════════════
+   ENTRY POINT
+═════════════════════════════════════════════════════════════ */
+
+int main(int argc, char *argv[]) {
+    extern FILE *yyin;
+
+    if (argc > 1) {
+        yyin = fopen(argv[1], "r");
+        if (!yyin) {
+            fprintf(stderr, "[CloudPol] Error: cannot open '%s'\n", argv[1]);
+            return 1;
+        }
+    }
+
+    printf("[CloudPol Parser] Starting syntax analysis…\n");
+
+    int rc = yyparse();
+
+    if (argc > 1) fclose(yyin);
+
+    if (g_errors > 0 || rc != 0) {
+        fprintf(stderr,
+            "[CloudPol Parser] Parse FAILED — %d error(s) encountered.\n",
+            g_errors);
+        if (g_program) free_program_node(g_program);
+        return 1;
+    }
+
+    /* Reverse statement list to restore source order */
+    if (g_program) {
+        StatementNode *prev = NULL, *cur = g_program->statements, *nxt;
+        while (cur) { nxt = cur->next; cur->next = prev; prev = cur; cur = nxt; }
+        g_program->statements = prev;
+    }
+
+    printf("[CloudPol Parser] Parse SUCCESSFUL — %d statement(s) parsed.\n",
+           g_program ? g_program->count : 0);
+
+    if (g_program) print_program_node(g_program);
+    if (g_program) free_program_node(g_program);
+
+    return 0;
+}

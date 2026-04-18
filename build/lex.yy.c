@@ -163,8 +163,27 @@ extern FILE *yyin, *yyout;
 #define EOB_ACT_END_OF_FILE 1
 #define EOB_ACT_LAST_MATCH 2
     
-    #define YY_LESS_LINENO(n)
-    #define YY_LINENO_REWIND_TO(ptr)
+    /* Note: We specifically omit the test for yy_rule_can_match_eol because it requires
+     *       access to the local variable yy_act. Since yyless() is a macro, it would break
+     *       existing scanners that call yyless() from OUTSIDE yylex.
+     *       One obvious solution it to make yy_act a global. I tried that, and saw
+     *       a 5% performance hit in a non-yylineno scanner, because yy_act is
+     *       normally declared as a register variable-- so it is not worth it.
+     */
+    #define  YY_LESS_LINENO(n) \
+            do { \
+                int yyl;\
+                for ( yyl = n; yyl < yyleng; ++yyl )\
+                    if ( yytext[yyl] == '\n' )\
+                        --yylineno;\
+            }while(0)
+    #define YY_LINENO_REWIND_TO(dst) \
+            do {\
+                const char *p;\
+                for ( p = yy_cp-1; p >= (dst); --p)\
+                    if ( *p == '\n' )\
+                        --yylineno;\
+            }while(0)
     
 /* Return all but the first "n" matched characters back to the input stream. */
 #define yyless(n) \
@@ -491,6 +510,12 @@ static const flex_int16_t yy_chk[153] =
        92,   92
     } ;
 
+/* Table of booleans, true if rule could match eol. */
+static const flex_int32_t yy_rule_can_match_eol[34] =
+    {   0,
+0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,     };
+
 static yy_state_type yy_last_accepting_state;
 static char *yy_last_accepting_cpos;
 
@@ -507,59 +532,70 @@ int yy_flex_debug = 0;
 char *yytext;
 #line 1 "src/policy_lexer.l"
 #line 2 "src/policy_lexer.l"
-/**
- * policy_lexer.l — Flex Lexical Analyzer for CloudPol DSL
+/*
+ * policy_lexer.l -- Flex Lexical Analyzer for CloudPol DSL
  * Cloud Policy as Code DSL Compiler
  *
  * Step 2: Lexical Analysis
  *
- * This file is the Flex specification for the CloudPol lexer.
- * It scans the raw DSL source text and emits a stream of typed
- * tokens for the Bison parser (Step 3).
+ * This Flex specification scans raw CloudPol source text and emits a
+ * typed token stream for the Bison parser (Step 3).
  *
  * Features:
  *   - Full keyword recognition (ALLOW, DENY, ROLE, ACTION, ON,
  *     RESOURCE, WHERE, AND, OR, NOT, TRUE, FALSE)
  *   - Attribute keywords (ip, time, mfa, region, tag)
  *   - Quoted string literals with value capture
- *   - Numeric literals
+ *   - Numeric literals (integer and decimal)
  *   - Multi-char operators (==, !=, <=, >=) and single-char (<, >)
  *   - Statement terminator (;)
- *   - Single-line comments  // …
- *   - Block comments        /* … */
- *   - Line and column tracking for error reporting
- *   - Graceful error recovery (illegal character warning)
+ *   - Single-line comments  // ...
+ *   - Block comments        scanned with input() loop
+ *   - Column tracking for precise error reporting
+ *   - Graceful error recovery on illegal characters
  *
- * Build:
- *   flex  -o src/lex.yy.c  src/policy_lexer.l
- *   gcc   -o policy_lexer  src/lex.yy.c  -lfl   (standalone test mode)
- *         — or —
- *   make lexer   (uses the provided Makefile)
+ * Build (standalone token printer):
+ *   flex -o build/lex.standalone.c src/policy_lexer.l
+ *   gcc  -Wall -g -I./include -DLEXER_STANDALONE \
+ *        -o build/policy_lexer build/lex.standalone.c -lfl
+ *
+ * Build (full compiler):
+ *   make all
  */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* ── Token definitions come from the Bison-generated header ──────── */
-#include "policy_parser.tab.h"
+/*
+ * Token definitions:
+ *   Standalone mode  -> use self-contained include/tokens.h (no Bison needed)
+ *   Full compiler    -> use Bison-generated policy_parser.tab.h
+ */
+#ifdef LEXER_STANDALONE
+#  include "tokens.h"
+   /* yylval definition for standalone mode */
+   YYSTYPE yylval;
+#else
+#  include "policy_parser.tab.h"
+#endif
 
-/* ── Source location tracking ────────────────────────────────────── */
-int yylineno = 1;
-int yycolno  = 1;
+/*
+ * Column tracking.
+ * yylineno is managed by Flex (%option yylineno).
+ * yycolno is updated via YY_USER_ACTION before every action.
+ */
+int yycolno = 1;
 
-/* Helper: advance column counter after every matched token */
 #define YY_USER_ACTION  yycolno += yyleng;
 
-/* ── Forward declarations ────────────────────────────────────────── */
+/* Forward declaration */
 static void strip_quotes(const char *src, char *dst, size_t dst_len);
 
-#line 557 "build/lex.yy.c"
-/* ── Flex options ────────────────────────────────────────────────── */
-#define YY_NO_INPUT 1
-/* ── Named character classes ─────────────────────────────────────── */
-/* ── String literal: any chars except unescaped quote or newline ─── */
-#line 562 "build/lex.yy.c"
+#line 595 "build/lex.yy.c"
+/* Flex options */
+/* Named character classes */
+#line 598 "build/lex.yy.c"
 
 #define INITIAL 0
 
@@ -774,15 +810,15 @@ YY_DECL
 		}
 
 	{
-#line 66 "src/policy_lexer.l"
+#line 74 "src/policy_lexer.l"
 
 
-#line 69 "src/policy_lexer.l"
- /* ════════════════════════════════════════════════════════════════
-    1. WHITESPACE  — skip silently, update line/col tracking
-    ════════════════════════════════════════════════════════════════ */
+#line 77 "src/policy_lexer.l"
+ /* ================================================================
+    1. WHITESPACE -- skip silently
+    ================================================================ */
 
-#line 785 "build/lex.yy.c"
+#line 821 "build/lex.yy.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -828,6 +864,16 @@ yy_find_action:
 
 		YY_DO_BEFORE_ACTION;
 
+		if ( yy_act != YY_END_OF_BUFFER && yy_rule_can_match_eol[yy_act] )
+			{
+			int yyl;
+			for ( yyl = 0; yyl < yyleng; ++yyl )
+				if ( yytext[yyl] == '\n' )
+					
+    yylineno++;
+;
+			}
+
 do_action:	/* This label is used only to access EOF actions. */
 
 		switch ( yy_act )
@@ -841,203 +887,203 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 73 "src/policy_lexer.l"
-{ /* skip horizontal whitespace — col already advanced by YY_USER_ACTION */ }
+#line 81 "src/policy_lexer.l"
+{ /* skip horizontal whitespace */ }
 	YY_BREAK
 case 2:
 /* rule 2 can match eol */
 YY_RULE_SETUP
-#line 75 "src/policy_lexer.l"
-{ yylineno++; yycolno = 1; }
+#line 82 "src/policy_lexer.l"
+{ yycolno = 1; }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
+/* ================================================================
     2. COMMENTS
-    ════════════════════════════════════════════════════════════════ */
+    ================================================================ */
 case 3:
 YY_RULE_SETUP
-#line 82 "src/policy_lexer.l"
-{ /* single-line comment — consume to end of line */ }
+#line 89 "src/policy_lexer.l"
+{ /* single-line comment -- consume to end of line */ }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 84 "src/policy_lexer.l"
+#line 91 "src/policy_lexer.l"
 {
-                        /* block comment — consume until closing */
-                        int c, prev = 0;
-                        while ((c = input()) != EOF) {
-                            if (c == '\n') { yylineno++; yycolno = 1; }
-                            else            yycolno++;
-                            if (prev == '*' && c == '/') break;
-                            prev = c;
-                        }
-                        if (c == EOF) {
-                            fprintf(stderr,
-                                "[CloudPol Lexer] ERROR line %d:%d: "
-                                "unterminated block comment\n",
-                                yylineno, yycolno);
-                        }
+                    /* block comment -- consume until closing */
+                    int c, prev = 0;
+                    while ((c = input()) != EOF) {
+                        if (c == '\n') { yycolno = 1; }
+                        else           { yycolno++; }
+                        if (prev == '*' && c == '/') break;
+                        prev = c;
                     }
+                    if (c == EOF) {
+                        fprintf(stderr,
+                            "[CloudPol Lexer] ERROR line %d:%d: "
+                            "unterminated block comment\n",
+                            yylineno, yycolno);
+                    }
+                }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
+/* ================================================================
     3. EFFECT KEYWORDS
-    ════════════════════════════════════════════════════════════════ */
+    ================================================================ */
 case 5:
 YY_RULE_SETUP
-#line 106 "src/policy_lexer.l"
+#line 113 "src/policy_lexer.l"
 { return KW_ALLOW; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 107 "src/policy_lexer.l"
+#line 114 "src/policy_lexer.l"
 { return KW_DENY;  }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
+/* ================================================================
     4. STRUCTURAL KEYWORDS
-    ════════════════════════════════════════════════════════════════ */
+    ================================================================ */
 case 7:
 YY_RULE_SETUP
-#line 114 "src/policy_lexer.l"
+#line 121 "src/policy_lexer.l"
 { return KW_ROLE;     }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 115 "src/policy_lexer.l"
+#line 122 "src/policy_lexer.l"
 { return KW_ACTION;   }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 116 "src/policy_lexer.l"
+#line 123 "src/policy_lexer.l"
 { return KW_ON;       }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 117 "src/policy_lexer.l"
+#line 124 "src/policy_lexer.l"
 { return KW_RESOURCE; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 118 "src/policy_lexer.l"
+#line 125 "src/policy_lexer.l"
 { return KW_WHERE;    }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
-    5. LOGICAL OPERATORS (keywords)
-    ════════════════════════════════════════════════════════════════ */
+/* ================================================================
+    5. LOGICAL OPERATOR KEYWORDS
+    ================================================================ */
 case 12:
 YY_RULE_SETUP
-#line 125 "src/policy_lexer.l"
+#line 132 "src/policy_lexer.l"
 { return KW_AND; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 126 "src/policy_lexer.l"
+#line 133 "src/policy_lexer.l"
 { return KW_OR;  }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 127 "src/policy_lexer.l"
+#line 134 "src/policy_lexer.l"
 { return KW_NOT; }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
+/* ================================================================
     6. BOOLEAN LITERALS
-    ════════════════════════════════════════════════════════════════ */
+    ================================================================ */
 case 15:
 YY_RULE_SETUP
-#line 134 "src/policy_lexer.l"
+#line 141 "src/policy_lexer.l"
 { yylval.bval = 1; return KW_TRUE;  }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 135 "src/policy_lexer.l"
+#line 142 "src/policy_lexer.l"
 { yylval.bval = 0; return KW_FALSE; }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
-    7. ATTRIBUTE KEYWORDS  (WHERE clause LHS)
-       Kept lowercase to distinguish from structural keywords and
-       to make the WHERE clause rigid and LLM-friendly.
-    ════════════════════════════════════════════════════════════════ */
+/* ================================================================
+    7. ATTRIBUTE KEYWORDS (WHERE clause LHS -- all lowercase)
+       Lowercase keeps attributes visually distinct from keywords
+       and makes the grammar LLM-friendly (rigid, unambiguous set).
+    ================================================================ */
 case 17:
 YY_RULE_SETUP
-#line 144 "src/policy_lexer.l"
+#line 151 "src/policy_lexer.l"
 { return ATTR_IP;     }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 145 "src/policy_lexer.l"
+#line 152 "src/policy_lexer.l"
 { return ATTR_TIME;   }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 146 "src/policy_lexer.l"
+#line 153 "src/policy_lexer.l"
 { return ATTR_MFA;    }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 147 "src/policy_lexer.l"
+#line 154 "src/policy_lexer.l"
 { return ATTR_REGION; }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 148 "src/policy_lexer.l"
+#line 155 "src/policy_lexer.l"
 { return ATTR_TAG;    }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
-    8. RELATIONAL OPERATORS (longest match first)
-    ════════════════════════════════════════════════════════════════ */
+/* ================================================================
+    8. RELATIONAL OPERATORS (longest-match rules listed first)
+    ================================================================ */
 case 22:
 YY_RULE_SETUP
-#line 155 "src/policy_lexer.l"
+#line 162 "src/policy_lexer.l"
 { return OP_EQ;  }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 156 "src/policy_lexer.l"
+#line 163 "src/policy_lexer.l"
 { return OP_NEQ; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 157 "src/policy_lexer.l"
+#line 164 "src/policy_lexer.l"
 { return OP_LEQ; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 158 "src/policy_lexer.l"
+#line 165 "src/policy_lexer.l"
 { return OP_GEQ; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 159 "src/policy_lexer.l"
+#line 166 "src/policy_lexer.l"
 { return OP_LT;  }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 160 "src/policy_lexer.l"
+#line 167 "src/policy_lexer.l"
 { return OP_GT;  }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
+/* ================================================================
     9. STATEMENT TERMINATOR
-    ════════════════════════════════════════════════════════════════ */
+    ================================================================ */
 case 28:
 YY_RULE_SETUP
-#line 167 "src/policy_lexer.l"
+#line 174 "src/policy_lexer.l"
 { return SEMICOLON; }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
-    10. STRING LITERALS  — capture value, strip surrounding quotes
-    ════════════════════════════════════════════════════════════════ */
+/* ================================================================
+    10. STRING LITERALS -- capture body, strip surrounding quotes
+    ================================================================ */
 case 29:
 YY_RULE_SETUP
-#line 174 "src/policy_lexer.l"
+#line 181 "src/policy_lexer.l"
 {
-                        /* Allocate and store the string without quotes */
                         size_t len = strlen(yytext);
-                        yylval.sval = (char *)malloc(len - 1); /* len-2 chars + NUL */
+                        /* len includes both quote chars; body = len-2 chars */
+                        yylval.sval = (char *)malloc(len - 1);
                         strip_quotes(yytext, yylval.sval, len - 1);
                         return STRING;
                     }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 182 "src/policy_lexer.l"
+#line 189 "src/policy_lexer.l"
 {
                         /* Unterminated string literal */
                         fprintf(stderr,
@@ -1046,23 +1092,23 @@ YY_RULE_SETUP
                             yylineno, yycolno, yytext);
                     }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
-    11. NUMERIC LITERALS
-    ════════════════════════════════════════════════════════════════ */
+/* ================================================================
+    11. NUMERIC LITERALS (integer and decimal)
+    ================================================================ */
 case 31:
 YY_RULE_SETUP
-#line 195 "src/policy_lexer.l"
+#line 202 "src/policy_lexer.l"
 {
-                        yylval.sval = strdup(yytext);
-                        return NUMBER;
-                    }
+                            yylval.sval = strdup(yytext);
+                            return NUMBER;
+                        }
 	YY_BREAK
-/* ════════════════════════════════════════════════════════════════
-    12. CATCH-ALL — illegal character, report and continue
-    ════════════════════════════════════════════════════════════════ */
+/* ================================================================
+    12. CATCH-ALL -- report and continue (error recovery)
+    ================================================================ */
 case 32:
 YY_RULE_SETUP
-#line 205 "src/policy_lexer.l"
+#line 212 "src/policy_lexer.l"
 {
                 fprintf(stderr,
                     "[CloudPol Lexer] ERROR line %d:%d: "
@@ -1072,10 +1118,10 @@ YY_RULE_SETUP
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 212 "src/policy_lexer.l"
+#line 219 "src/policy_lexer.l"
 ECHO;
 	YY_BREAK
-#line 1078 "build/lex.yy.c"
+#line 1124 "build/lex.yy.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -1482,6 +1528,11 @@ static int yy_get_next_buffer (void)
 	c = *(unsigned char *) (yy_c_buf_p);	/* cast for 8-bit char's */
 	*(yy_c_buf_p) = '\0';	/* preserve yytext */
 	(yy_hold_char) = *++(yy_c_buf_p);
+
+	if ( c == '\n' )
+		
+    yylineno++;
+;
 
 	return c;
 }
@@ -1949,6 +2000,9 @@ static int yy_init_globals (void)
      * This function is called from yylex_destroy(), so don't allocate here.
      */
 
+    /* We do not touch yylineno unless the option is enabled. */
+    yylineno =  1;
+    
     (yy_buffer_stack) = NULL;
     (yy_buffer_stack_top) = 0;
     (yy_buffer_stack_max) = 0;
@@ -2043,35 +2097,38 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 212 "src/policy_lexer.l"
+#line 219 "src/policy_lexer.l"
 
 
-/* ─────────────────────────────────────────────────────────────────
-   strip_quotes
-   Copies the string literal body from src (which includes leading
-   and trailing double-quote characters) into dst.
-───────────────────────────────────────────────────────────────────*/
+/*
+ * strip_quotes
+ * Copies the string body from src (which includes leading and trailing
+ * double-quote characters) into dst, NUL-terminating the result.
+ *   src = "some text"  -->  dst = some text
+ */
 static void strip_quotes(const char *src, char *dst, size_t dst_len) {
-    /* src = "some text"  →  dst = some text */
     size_t src_len = strlen(src);
     if (src_len < 2) { dst[0] = '\0'; return; }
-    size_t body_len = src_len - 2;               /* skip first and last " */
+    size_t body_len = src_len - 2;            /* skip leading and trailing " */
     if (body_len >= dst_len) body_len = dst_len - 1;
     memcpy(dst, src + 1, body_len);
     dst[body_len] = '\0';
 }
 
-/* ─────────────────────────────────────────────────────────────────
-   STANDALONE TEST ENTRY POINT
-   When compiled without Bison (make lexer-test), main() drives the
-   lexer and pretty-prints every token it produces.
 
-   Compile:   gcc -DLEXER_STANDALONE -o policy_lexer lex.yy.c
-   Run:       echo 'ALLOW ROLE "Admin" ...' | ./policy_lexer
-───────────────────────────────────────────────────────────────────*/
+/*
+ * STANDALONE TEST ENTRY POINT
+ *
+ * When compiled with -DLEXER_STANDALONE, main() drives the lexer and
+ * pretty-prints every token it produces. Used for Step 2 verification.
+ *
+ * Compile:
+ *   make lexer-test
+ * Run:
+ *   cat samples/valid_policy.pol | ./build/policy_lexer
+ */
 #ifdef LEXER_STANDALONE
 
-/* Map token codes → human-readable names */
 static const char *token_name(int tok) {
     switch (tok) {
         case KW_ALLOW:    return "KW_ALLOW";
@@ -2106,27 +2163,33 @@ static const char *token_name(int tok) {
 
 int main(void) {
     int tok;
-    printf("%-15s %-12s %s\n", "TOKEN", "LINE:COL", "VALUE");
-    printf("%-15s %-12s %s\n", "─────────────", "──────────", "─────");
+    printf("%-16s %-12s %s\n", "TOKEN", "LINE:COL", "VALUE");
+    printf("%-16s %-12s %s\n",
+           "----------------", "------------", "-----");
     while ((tok = yylex()) != 0) {
         char loc[32];
-        snprintf(loc, sizeof(loc), "%d:%d", yylineno, yycolno - yyleng);
+        snprintf(loc, sizeof(loc), "%d:%d", yylineno,
+                 yycolno > yyleng ? yycolno - yyleng : 1);
         switch (tok) {
             case STRING:
             case NUMBER:
-                printf("%-15s %-12s \"%s\"\n", token_name(tok), loc, yylval.sval);
+                printf("%-16s %-12s \"%s\"\n",
+                       token_name(tok), loc, yylval.sval);
                 free(yylval.sval);
+                yylval.sval = NULL;
                 break;
             case KW_TRUE:
             case KW_FALSE:
-                printf("%-15s %-12s %s\n", token_name(tok), loc,
+                printf("%-16s %-12s %s\n",
+                       token_name(tok), loc,
                        yylval.bval ? "true" : "false");
                 break;
             default:
-                printf("%-15s %-12s\n", token_name(tok), loc);
+                printf("%-16s %-12s\n", token_name(tok), loc);
         }
     }
     return 0;
 }
+
 #endif /* LEXER_STANDALONE */
 
