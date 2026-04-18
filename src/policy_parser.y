@@ -23,14 +23,15 @@
 #include <string.h>
 #include "../include/ast.h"
 #include "../include/semantic.h"
+#include "../include/cli.h"
 
 extern int yylex(void);
 extern int yylineno;
 extern int yycolno;
 
-/* ── Parser state ────────────────────────────────────────────── */
-static ProgramNode *g_program = NULL;
-static int          g_errors  = 0;
+/* ── Parser state (global so cli.c can read them) ──────────────── */
+ProgramNode *g_program = NULL;
+int          g_errors  = 0;
 
 void yyerror(const char *msg) {
     fprintf(stderr,
@@ -201,61 +202,11 @@ value
 
 /* ═════════════════════════════════════════════════════════════
    ENTRY POINT
+   Delegates entirely to the CLI driver in src/cli.c.
 ═════════════════════════════════════════════════════════════ */
 
 int main(int argc, char *argv[]) {
-    extern FILE *yyin;
-
-    if (argc > 1) {
-        yyin = fopen(argv[1], "r");
-        if (!yyin) {
-            fprintf(stderr, "[CloudPol] Error: cannot open '%s'\n", argv[1]);
-            return 1;
-        }
-    }
-
-    /* ── Phase 1: Syntax Analysis ─────────────────────────────────── */
-    printf("[CloudPol] Phase 1: Syntax analysis…\n");
-    int rc = yyparse();
-    if (argc > 1) fclose(yyin);
-
-    if (g_errors > 0 || rc != 0) {
-        fprintf(stderr,
-            "[CloudPol Parser] Parse FAILED — %d error(s) encountered.\n",
-            g_errors);
-        if (g_program) free_program_node(g_program);
-        return 1;
-    }
-
-    /* Reverse statement list to restore source order */
-    if (g_program) {
-        StatementNode *prev = NULL, *cur = g_program->statements, *nxt;
-        while (cur) { nxt = cur->next; cur->next = prev; prev = cur; cur = nxt; }
-        g_program->statements = prev;
-    }
-
-    printf("[CloudPol Parser] Parse SUCCESSFUL — %d statement(s) parsed.\n",
-           g_program ? g_program->count : 0);
-
-    /* Print AST */
-    if (g_program) print_program_node(g_program);
-
-    /* ── Phase 2: Semantic Analysis ───────────────────────────────── */
-    printf("[CloudPol] Phase 2: Semantic analysis…\n");
-    SemanticResult *sem = analyze_program(g_program);
-    print_semantic_result(sem);
-    int sem_errors = sem ? sem->count : 0;
-    free_semantic_result(sem);
-
-    if (g_program) free_program_node(g_program);
-
-    if (sem_errors > 0) {
-        fprintf(stderr,
-            "[CloudPol] Compilation FAILED — %d semantic error(s).\n",
-            sem_errors);
-        return 2;
-    }
-
-    printf("[CloudPol] Compilation SUCCESSFUL — policy is syntactically and semantically valid.\n");
-    return 0;
+    CliOptions opts = parse_cli(argc, argv);
+    return run_compiler(opts);
 }
+

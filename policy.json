@@ -1,0 +1,117 @@
+{
+  "Version": "2012-10-17",
+  "_Source": "samples/valid_policy.pol",
+  "Statement": [
+    {
+      "Sid": "CloudPol_DevOps_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "s3:PutObject",
+      "Resource": "arn:aws:s3:::prod-artifacts"
+    },
+    {
+      "Sid": "CloudPol_Intern_1",
+      "Effect": "Deny",
+      "Principal": {"AWS": "*"},
+      "Action": "iam:CreateUser",
+      "Resource": "arn:aws:iam:::*"
+    },
+    {
+      "Sid": "CloudPol_DataEngineer_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::data-lake",
+      "Condition": {
+        "IpAddress": { "aws:SourceIp": "10.10.0.0/24" }
+      }
+    },
+    {
+      "Sid": "CloudPol_SRE_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "ec2:TerminateInstances",
+      "Resource": "arn:aws:ec2:::instance/*",
+      "Condition": {
+        "Bool": { "aws:MultiFactorAuthPresent": "true" }
+      }
+    },
+    {
+      "Sid": "CloudPol_Developer_1",
+      "Effect": "Deny",
+      "Principal": {"AWS": "*"},
+      "Action": "rds:DeleteDBInstance",
+      "Resource": "arn:aws:rds:::db:prod-*",
+      "Condition": {
+        "StringNotEquals": { "aws:RequestedRegion": "us-east-1" }
+      }
+    },
+    {
+      "Sid": "CloudPol_SecurityAuditor_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "cloudtrail:LookupEvents",
+      "Resource": "arn:aws:cloudtrail:::trail/*",
+      "Condition": {
+        "StringLike": { "cloudpol:RawCondition": "((ip == 192.168.1.0/24) AND (mfa == TRUE))" }
+      }
+    },
+    {
+      "Sid": "CloudPol_OnCallEngineer_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "ec2:StopInstances",
+      "Resource": "arn:aws:ec2:::instance/i-*",
+      "Condition": {
+        "StringLike": { "cloudpol:RawCondition": "((region == us-east-1) OR (region == eu-west-1))" }
+      }
+    },
+    {
+      "Sid": "CloudPol_ExternalContractor_1",
+      "Effect": "Deny",
+      "Principal": {"AWS": "*"},
+      "Action": "s3:DeleteObject",
+      "Resource": "arn:aws:s3:::client-data",
+      "Condition": {
+        "StringLike": { "cloudpol:RawCondition": "((ip != 10.0.0.0/8) AND (mfa == FALSE))" }
+      }
+    },
+    {
+      "Sid": "CloudPol_QAEngineer_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "lambda:InvokeFunction",
+      "Resource": "arn:aws:lambda:::function:test-*",
+      "Condition": {
+        "StringLike": { "cloudpol:RawCondition": "(NOT (region == ap-south-1))" }
+      }
+    },
+    {
+      "Sid": "CloudPol_Analyst_1",
+      "Effect": "Deny",
+      "Principal": {"AWS": "*"},
+      "Action": "redshift:GetClusterCredentials",
+      "Resource": "arn:aws:redshift:::cluster:analytics",
+      "Condition": {
+        "StringLike": { "cloudpol:RawCondition": "((time >= 22) AND (time <= 6))" }
+      }
+    },
+    {
+      "Sid": "CloudPol_CostManager_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "ec2:DescribeInstances",
+      "Resource": "arn:aws:ec2:::instance/*",
+      "Condition": {
+        "StringLike": { "cloudpol:RawCondition": "((tag == env:production) AND (mfa == TRUE))" }
+      }
+    },
+    {
+      "Sid": "CloudPol_Admin_1",
+      "Effect": "Allow",
+      "Principal": {"AWS": "*"},
+      "Action": "s3:*",
+      "Resource": "arn:aws:s3:::*"
+    }
+  ]
+}

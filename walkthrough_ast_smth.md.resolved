@@ -1,0 +1,66 @@
+# Step 4: Semantic Analysis — Walkthrough
+
+## What Was Built
+
+### New Files
+
+| File | Purpose |
+|---|---|
+| [include/semantic.h](file:///home/manthankhawse/cd-cp/include/semantic.h) | Error taxonomy (`SemErrCode`), `SemanticError` list type, public API |
+| [src/aws_dict.h](file:///home/manthankhawse/cd-cp/src/aws_dict.h) | 130+ real AWS actions across 15 services + ARN validator + wildcard support |
+| [src/semantic.c](file:///home/manthankhawse/cd-cp/src/semantic.c) | Full AST traversal implementing 6 semantic checks |
+| [samples/semantic_errors.pol](file:///home/manthankhawse/cd-cp/samples/semantic_errors.pol) | Test policy with one of each SC-01–SC-05 error |
+
+### Modified Files
+
+| File | Change |
+|---|---|
+| [src/policy_parser.y](file:///home/manthankhawse/cd-cp/src/policy_parser.y) | `main()` now runs Phase 2 ([analyze_program](file:///home/manthankhawse/cd-cp/src/semantic.c#214-251)) after a successful parse |
+| [Makefile](file:///home/manthankhawse/cd-cp/Makefile) | Added `SEMANTIC_C` variable, linked into `parser` target |
+
+---
+
+## Semantic Checks
+
+| Code | Name | What it catches |
+|---|---|---|
+| SC-01 | `UNKNOWN_ACTION` | Action not in the AWS mock dictionary |
+| SC-02 | `BAD_ARN` | Resource doesn't start with `arn:` and isn't `*` |
+| SC-03 | `DUPLICATE_STMT` | Exact duplicate (role + action + resource + effect) |
+| SC-04 | `CONFLICT_EFFECT` | Same triple but ALLOW vs DENY clash |
+| SC-05 | `TYPE_MISMATCH` | `mfa` not TRUE/FALSE, `time` not numeric, [ip](file:///home/manthankhawse/cd-cp/src/semantic.c#99-109) not inet addr |
+| SC-06 | `EMPTY_POLICY` | Zero statements after successful parse |
+
+---
+
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Syntactically and semantically valid |
+| `1` | Syntax / parse failure |
+| `2` | Semantic failure |
+
+---
+
+## Verification Results
+
+### [valid_policy.pol](file:///home/manthankhawse/cd-cp/samples/valid_policy.pol) — 13 statements, all pass
+```
+[CloudPol] Phase 1: Syntax analysis…
+[CloudPol Parser] Parse SUCCESSFUL — 13 statement(s) parsed.
+[CloudPol] Phase 2: Semantic analysis…
+[CloudPol Semantic] ✓  All semantic checks PASSED — no issues found.
+[CloudPol] Compilation SUCCESSFUL
+```
+
+### [semantic_errors.pol](file:///home/manthankhawse/cd-cp/samples/semantic_errors.pol) — 9 statements, 7 errors caught
+```
+[Error 1] line 8    [UNKNOWN_ACTION]   SC-01: Unknown AWS action "fakeservice:DoStuff"
+[Error 2] line 13   [BAD_ARN]          SC-02: Malformed ARN "not-an-arn-at-all"
+[Error 3] line 37   [TYPE_MISMATCH]    SC-05: mfa expects TRUE/FALSE, got "yes"
+[Error 4] line 43   [TYPE_MISMATCH]    SC-05: time expects numeric, got "midnight"
+[Error 5] line 49   [TYPE_MISMATCH]    SC-05: ip expects IPv4 address, got "my-office"
+[Error 6] line 22   [DUPLICATE_STMT]   SC-03: Duplicate ALLOW for Auditor/cloudtrail
+[Error 7] line 31   [CONFLICT_EFFECT]  SC-04: DENY conflicts with ALLOW for DevOps/s3:PutObject
+```

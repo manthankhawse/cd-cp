@@ -93,14 +93,15 @@
 #include <string.h>
 #include "../include/ast.h"
 #include "../include/semantic.h"
+#include "../include/cli.h"
 
 extern int yylex(void);
 extern int yylineno;
 extern int yycolno;
 
-/* ── Parser state ────────────────────────────────────────────── */
-static ProgramNode *g_program = NULL;
-static int          g_errors  = 0;
+/* ── Parser state (global so cli.c can read them) ──────────────── */
+ProgramNode *g_program = NULL;
+int          g_errors  = 0;
 
 void yyerror(const char *msg) {
     fprintf(stderr,
@@ -110,7 +111,7 @@ void yyerror(const char *msg) {
 }
 
 
-#line 114 "build/policy_parser.tab.c"
+#line 115 "build/policy_parser.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -564,9 +565,9 @@ static const yytype_int8 yytranslate[] =
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint8 yyrline[] =
 {
-       0,   120,   120,   122,   131,   136,   142,   150,   151,   155,
-     158,   161,   164,   169,   177,   178,   179,   180,   181,   185,
-     186,   187,   188,   189,   190,   194,   195,   196,   197
+       0,   121,   121,   123,   132,   137,   143,   151,   152,   156,
+     159,   162,   165,   170,   178,   179,   180,   181,   182,   186,
+     187,   188,   189,   190,   191,   195,   196,   197,   198
 };
 #endif
 
@@ -1152,13 +1153,13 @@ yyreduce:
   switch (yyn)
     {
   case 2: /* program: %empty  */
-#line 120 "src/policy_parser.y"
+#line 121 "src/policy_parser.y"
         { g_program = (ProgramNode *)calloc(1, sizeof(ProgramNode)); }
-#line 1158 "build/policy_parser.tab.c"
+#line 1159 "build/policy_parser.tab.c"
     break;
 
   case 3: /* program: program statement  */
-#line 123 "src/policy_parser.y"
+#line 124 "src/policy_parser.y"
         {
             if ((yyvsp[0].stmt)) {
                 (yyvsp[0].stmt)->next              = g_program->statements;
@@ -1166,170 +1167,170 @@ yyreduce:
                 g_program->count++;
             }
         }
-#line 1170 "build/policy_parser.tab.c"
+#line 1171 "build/policy_parser.tab.c"
     break;
 
   case 4: /* program: program error SEMICOLON  */
-#line 132 "src/policy_parser.y"
+#line 133 "src/policy_parser.y"
         { yyerrok; }
-#line 1176 "build/policy_parser.tab.c"
+#line 1177 "build/policy_parser.tab.c"
     break;
 
   case 5: /* statement: effect KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING SEMICOLON  */
-#line 137 "src/policy_parser.y"
+#line 138 "src/policy_parser.y"
         {
             (yyval.stmt) = make_statement((Effect)(yyvsp[-8].eval), (yyvsp[-6].sval), (yyvsp[-4].sval), (yyvsp[-1].sval), NULL, yylineno);
             free((yyvsp[-6].sval)); free((yyvsp[-4].sval)); free((yyvsp[-1].sval));
         }
-#line 1185 "build/policy_parser.tab.c"
+#line 1186 "build/policy_parser.tab.c"
     break;
 
   case 6: /* statement: effect KW_ROLE STRING KW_ACTION STRING KW_ON KW_RESOURCE STRING KW_WHERE condition SEMICOLON  */
-#line 143 "src/policy_parser.y"
+#line 144 "src/policy_parser.y"
         {
             (yyval.stmt) = make_statement((Effect)(yyvsp[-10].eval), (yyvsp[-8].sval), (yyvsp[-6].sval), (yyvsp[-3].sval), (yyvsp[-1].cond), yylineno);
             free((yyvsp[-8].sval)); free((yyvsp[-6].sval)); free((yyvsp[-3].sval));
         }
-#line 1194 "build/policy_parser.tab.c"
+#line 1195 "build/policy_parser.tab.c"
     break;
 
   case 7: /* effect: KW_ALLOW  */
-#line 150 "src/policy_parser.y"
+#line 151 "src/policy_parser.y"
                 { (yyval.eval) = (int)EFFECT_ALLOW; }
-#line 1200 "build/policy_parser.tab.c"
+#line 1201 "build/policy_parser.tab.c"
     break;
 
   case 8: /* effect: KW_DENY  */
-#line 151 "src/policy_parser.y"
+#line 152 "src/policy_parser.y"
                 { (yyval.eval) = (int)EFFECT_DENY;  }
-#line 1206 "build/policy_parser.tab.c"
+#line 1207 "build/policy_parser.tab.c"
     break;
 
   case 9: /* condition: simple_cond  */
-#line 156 "src/policy_parser.y"
+#line 157 "src/policy_parser.y"
         { (yyval.cond) = (yyvsp[0].cond); }
-#line 1212 "build/policy_parser.tab.c"
+#line 1213 "build/policy_parser.tab.c"
     break;
 
   case 10: /* condition: condition KW_AND condition  */
-#line 159 "src/policy_parser.y"
+#line 160 "src/policy_parser.y"
         { (yyval.cond) = make_compound_cond(LOG_AND, (yyvsp[-2].cond), (yyvsp[0].cond)); }
-#line 1218 "build/policy_parser.tab.c"
+#line 1219 "build/policy_parser.tab.c"
     break;
 
   case 11: /* condition: condition KW_OR condition  */
-#line 162 "src/policy_parser.y"
+#line 163 "src/policy_parser.y"
         { (yyval.cond) = make_compound_cond(LOG_OR,  (yyvsp[-2].cond), (yyvsp[0].cond)); }
-#line 1224 "build/policy_parser.tab.c"
+#line 1225 "build/policy_parser.tab.c"
     break;
 
   case 12: /* condition: KW_NOT simple_cond  */
-#line 165 "src/policy_parser.y"
+#line 166 "src/policy_parser.y"
         { (yyval.cond) = make_compound_cond(LOG_NOT, (yyvsp[0].cond), NULL); }
-#line 1230 "build/policy_parser.tab.c"
+#line 1231 "build/policy_parser.tab.c"
     break;
 
   case 13: /* simple_cond: attr_str rel_op value  */
-#line 170 "src/policy_parser.y"
+#line 171 "src/policy_parser.y"
         {
             (yyval.cond) = make_simple_cond((yyvsp[-2].sval), (RelOp)(yyvsp[-1].rval), (yyvsp[0].sval));
             free((yyvsp[0].sval));
         }
-#line 1239 "build/policy_parser.tab.c"
+#line 1240 "build/policy_parser.tab.c"
     break;
 
   case 14: /* attr_str: ATTR_IP  */
-#line 177 "src/policy_parser.y"
+#line 178 "src/policy_parser.y"
                   { (yyval.sval) = "ip";     }
-#line 1245 "build/policy_parser.tab.c"
+#line 1246 "build/policy_parser.tab.c"
     break;
 
   case 15: /* attr_str: ATTR_TIME  */
-#line 178 "src/policy_parser.y"
+#line 179 "src/policy_parser.y"
                   { (yyval.sval) = "time";   }
-#line 1251 "build/policy_parser.tab.c"
+#line 1252 "build/policy_parser.tab.c"
     break;
 
   case 16: /* attr_str: ATTR_MFA  */
-#line 179 "src/policy_parser.y"
+#line 180 "src/policy_parser.y"
                   { (yyval.sval) = "mfa";    }
-#line 1257 "build/policy_parser.tab.c"
+#line 1258 "build/policy_parser.tab.c"
     break;
 
   case 17: /* attr_str: ATTR_REGION  */
-#line 180 "src/policy_parser.y"
+#line 181 "src/policy_parser.y"
                   { (yyval.sval) = "region"; }
-#line 1263 "build/policy_parser.tab.c"
+#line 1264 "build/policy_parser.tab.c"
     break;
 
   case 18: /* attr_str: ATTR_TAG  */
-#line 181 "src/policy_parser.y"
+#line 182 "src/policy_parser.y"
                   { (yyval.sval) = "tag";    }
-#line 1269 "build/policy_parser.tab.c"
+#line 1270 "build/policy_parser.tab.c"
     break;
 
   case 19: /* rel_op: OP_EQ  */
-#line 185 "src/policy_parser.y"
+#line 186 "src/policy_parser.y"
               { (yyval.rval) = (int)REL_EQ;  }
-#line 1275 "build/policy_parser.tab.c"
+#line 1276 "build/policy_parser.tab.c"
     break;
 
   case 20: /* rel_op: OP_NEQ  */
-#line 186 "src/policy_parser.y"
+#line 187 "src/policy_parser.y"
               { (yyval.rval) = (int)REL_NEQ; }
-#line 1281 "build/policy_parser.tab.c"
+#line 1282 "build/policy_parser.tab.c"
     break;
 
   case 21: /* rel_op: OP_LT  */
-#line 187 "src/policy_parser.y"
+#line 188 "src/policy_parser.y"
               { (yyval.rval) = (int)REL_LT;  }
-#line 1287 "build/policy_parser.tab.c"
+#line 1288 "build/policy_parser.tab.c"
     break;
 
   case 22: /* rel_op: OP_GT  */
-#line 188 "src/policy_parser.y"
+#line 189 "src/policy_parser.y"
               { (yyval.rval) = (int)REL_GT;  }
-#line 1293 "build/policy_parser.tab.c"
+#line 1294 "build/policy_parser.tab.c"
     break;
 
   case 23: /* rel_op: OP_LEQ  */
-#line 189 "src/policy_parser.y"
+#line 190 "src/policy_parser.y"
               { (yyval.rval) = (int)REL_LEQ; }
-#line 1299 "build/policy_parser.tab.c"
+#line 1300 "build/policy_parser.tab.c"
     break;
 
   case 24: /* rel_op: OP_GEQ  */
-#line 190 "src/policy_parser.y"
+#line 191 "src/policy_parser.y"
               { (yyval.rval) = (int)REL_GEQ; }
-#line 1305 "build/policy_parser.tab.c"
+#line 1306 "build/policy_parser.tab.c"
     break;
 
   case 25: /* value: STRING  */
-#line 194 "src/policy_parser.y"
+#line 195 "src/policy_parser.y"
                 { (yyval.sval) = (yyvsp[0].sval);              }
-#line 1311 "build/policy_parser.tab.c"
+#line 1312 "build/policy_parser.tab.c"
     break;
 
   case 26: /* value: NUMBER  */
-#line 195 "src/policy_parser.y"
+#line 196 "src/policy_parser.y"
                 { (yyval.sval) = (yyvsp[0].sval);              }
-#line 1317 "build/policy_parser.tab.c"
+#line 1318 "build/policy_parser.tab.c"
     break;
 
   case 27: /* value: KW_TRUE  */
-#line 196 "src/policy_parser.y"
+#line 197 "src/policy_parser.y"
                 { (yyval.sval) = strdup("TRUE");  }
-#line 1323 "build/policy_parser.tab.c"
+#line 1324 "build/policy_parser.tab.c"
     break;
 
   case 28: /* value: KW_FALSE  */
-#line 197 "src/policy_parser.y"
+#line 198 "src/policy_parser.y"
                 { (yyval.sval) = strdup("FALSE"); }
-#line 1329 "build/policy_parser.tab.c"
+#line 1330 "build/policy_parser.tab.c"
     break;
 
 
-#line 1333 "build/policy_parser.tab.c"
+#line 1334 "build/policy_parser.tab.c"
 
       default: break;
     }
@@ -1522,66 +1523,16 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 200 "src/policy_parser.y"
+#line 201 "src/policy_parser.y"
 
 
 /* ═════════════════════════════════════════════════════════════
    ENTRY POINT
+   Delegates entirely to the CLI driver in src/cli.c.
 ═════════════════════════════════════════════════════════════ */
 
 int main(int argc, char *argv[]) {
-    extern FILE *yyin;
-
-    if (argc > 1) {
-        yyin = fopen(argv[1], "r");
-        if (!yyin) {
-            fprintf(stderr, "[CloudPol] Error: cannot open '%s'\n", argv[1]);
-            return 1;
-        }
-    }
-
-    /* ── Phase 1: Syntax Analysis ─────────────────────────────────── */
-    printf("[CloudPol] Phase 1: Syntax analysis…\n");
-    int rc = yyparse();
-    if (argc > 1) fclose(yyin);
-
-    if (g_errors > 0 || rc != 0) {
-        fprintf(stderr,
-            "[CloudPol Parser] Parse FAILED — %d error(s) encountered.\n",
-            g_errors);
-        if (g_program) free_program_node(g_program);
-        return 1;
-    }
-
-    /* Reverse statement list to restore source order */
-    if (g_program) {
-        StatementNode *prev = NULL, *cur = g_program->statements, *nxt;
-        while (cur) { nxt = cur->next; cur->next = prev; prev = cur; cur = nxt; }
-        g_program->statements = prev;
-    }
-
-    printf("[CloudPol Parser] Parse SUCCESSFUL — %d statement(s) parsed.\n",
-           g_program ? g_program->count : 0);
-
-    /* Print AST */
-    if (g_program) print_program_node(g_program);
-
-    /* ── Phase 2: Semantic Analysis ───────────────────────────────── */
-    printf("[CloudPol] Phase 2: Semantic analysis…\n");
-    SemanticResult *sem = analyze_program(g_program);
-    print_semantic_result(sem);
-    int sem_errors = sem ? sem->count : 0;
-    free_semantic_result(sem);
-
-    if (g_program) free_program_node(g_program);
-
-    if (sem_errors > 0) {
-        fprintf(stderr,
-            "[CloudPol] Compilation FAILED — %d semantic error(s).\n",
-            sem_errors);
-        return 2;
-    }
-
-    printf("[CloudPol] Compilation SUCCESSFUL — policy is syntactically and semantically valid.\n");
-    return 0;
+    CliOptions opts = parse_cli(argc, argv);
+    return run_compiler(opts);
 }
+
