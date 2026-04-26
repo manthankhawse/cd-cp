@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudPol AI — Policy Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <!-- marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- highlight.js for code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<style>
+/* ── Reset & Variables ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0f1117;
+  --surface:     #1a1d27;
+  --surface2:    #22263a;
+  --border:      #2e3347;
+  --accent:      #4f8ef7;
+  --accent-dim:  #1e3a6e;
+  --green:       #22c55e;
+  --red:         #f87171;
+  --amber:       #fbbf24;
+  --text:        #e2e8f0;
+  --text-muted:  #64748b;
+  --text-faint:  #334155;
+  --user-bubble: #1e3a6e;
+  --ai-bubble:   #1a1d27;
+  --radius:      12px;
+  --font:        'Inter', system-ui, sans-serif;
+  --mono:        'JetBrains Mono', monospace;
+  --shadow:      0 4px 24px rgba(0,0,0,0.4);
+}
+
+html, body { height: 100%; font-family: var(--font); background: var(--bg); color: var(--text); overflow: hidden; }
+
+/* ── Layout ────────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  grid-template-rows: 100vh;
+  height: 100vh;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.sidebar-logo svg { flex-shrink: 0; }
+
+.logo-text { font-size: 15px; font-weight: 600; letter-spacing: -0.02em; }
+.logo-sub  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+.sidebar-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 4px 8px;
+  margin-top: 8px;
+}
+
+.quick-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 13px;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.quick-btn:hover { background: var(--surface2); color: var(--text); }
+.quick-btn .ic { font-size: 15px; flex-shrink: 0; }
+
+.sidebar-bottom {
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.new-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 9px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.new-btn:hover { background: var(--accent); color: #fff; }
+
+/* ── Main chat area ────────────────────────────────────────────────── */
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Top Bar ───────────────────────────────────────────────────────── */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
+}
+
+.top-title { font-size: 14px; font-weight: 500; color: var(--text-muted); }
+.top-model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.model-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+/* ── Messages ──────────────────────────────────────────────────────── */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 0;
+  scroll-behavior: smooth;
+}
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+.msg-row {
+  display: flex;
+  gap: 14px;
+  padding: 6px 24px;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+  animation: fadeUp 0.25s ease;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  margin-top: 2px;
+}
+.avatar-user { background: var(--user-bubble); color: var(--accent); }
+.avatar-ai   { background: var(--surface2); }
+
+.msg-content { flex: 1; min-width: 0; }
+
+.msg-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.msg-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+/* Markdown inside msg-body */
+.msg-body p  { margin-bottom: 10px; }
+.msg-body p:last-child { margin-bottom: 0; }
+.msg-body ul, .msg-body ol { margin: 8px 0 8px 20px; }
+.msg-body li { margin-bottom: 4px; }
+.msg-body h1, .msg-body h2, .msg-body h3 { margin: 12px 0 6px; font-weight: 600; }
+.msg-body strong { color: #fff; }
+.msg-body code {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.msg-body pre {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.msg-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+}
+.msg-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.msg-body th, .msg-body td {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+.msg-body th { background: var(--surface2); font-weight: 600; }
+.msg-body blockquote {
+  border-left: 3px solid var(--accent);
+  padding: 4px 12px;
+  color: var(--text-muted);
+  margin: 8px 0;
+}
+
+/* ── Policy block ──────────────────────────────────────────────────── */
+.policy-block {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.policy-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--surface2);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.policy-header .pill {
+  margin-left: auto;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.policy-src {
+  background: #0d1117;
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  tab-size: 2;
+  color: #c9d1d9;
+}
+
+/* ── Compiler result card ──────────────────────────────────────────── */
+.compiler-card {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.compiler-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: var(--surface2);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.compiler-header.success { color: var(--green); }
+.compiler-header.fail    { color: var(--red); }
+.compiler-header .chevron { margin-left: auto; transition: transform 0.2s; }
+.compiler-header.open .chevron { transform: rotate(90deg); }
+
+.compiler-body {
+  display: none;
+  padding: 14px 16px;
+  background: #0d1117;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+  color: #c9d1d9;
+}
+.compiler-body.visible { display: block; }
+
+/* ── Suggestions ───────────────────────────────────────────────────── */
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 24px 0;
+  max-width: 900px;
+  margin: 0 auto;
+  width: 100%;
+}
+.sugg-chip {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.sugg-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+/* ── Typing indicator ──────────────────────────────────────────────── */
+.typing .dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: blink 1.4s infinite both;
+}
+.typing .dot:nth-child(2) { animation-delay: 0.2s; }
+.typing .dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+/* ── Input area ────────────────────────────────────────────────────── */
+.input-area {
+  padding: 14px 24px 20px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.input-wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: border-color 0.15s;
+}
+.input-wrap:focus-within { border-color: var(--accent); }
+
+#user-input {
+  width: 100%;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: none;
+  padding: 14px 52px 14px 16px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+#user-input::placeholder { color: var(--text-muted); }
+
+.send-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s, background 0.15s;
+}
+.send-btn:hover { opacity: 0.85; }
+.send-btn:disabled { background: var(--surface2); cursor: not-allowed; }
+.send-btn svg { color: #fff; }
+
+.input-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 8px;
+}
+
+/* ── Empty state ───────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-muted);
+  padding: 0 24px;
+  text-align: center;
+}
+.empty-icon { font-size: 42px; }
+.empty-title { font-size: 20px; font-weight: 600; color: var(--text); }
+.empty-sub   { font-size: 14px; max-width: 420px; line-height: 1.6; }
+.starter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 16px;
+  width: 100%;
+  max-width: 560px;
+}
+.starter-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+.starter-card:hover { border-color: var(--accent); background: var(--accent-dim); }
+.starter-card .sc-icon { font-size: 18px; margin-bottom: 6px; }
+.starter-card .sc-title { font-size: 13px; font-weight: 500; color: var(--text); }
+.starter-card .sc-desc  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+</style>
+</head>
+
+<body>
+<div class="layout">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="7" fill="#1e3a6e"/>
+        <path d="M7 14L12 19L21 10" stroke="#4f8ef7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div>
+        <div class="logo-text">CloudPol AI</div>
+        <div class="logo-sub">Policy Assistant</div>
+      </div>
+    </div>
+
+    <div class="sidebar-label">Quick Prompts</div>
+    <button class="quick-btn" onclick="insertPrompt('Allow DevOps to read and write to S3')">
+      <span class="ic">🪣</span> S3 read/write access
+    </button>
+    <button class="quick-btn" onclick="insertPrompt('Deny interns from creating IAM users')">
+      <span class="ic">🚫</span> Restrict IAM actions
+    </button>
+    <button class="quick-btn" onclick="insertPrompt('Allow SREs to terminate EC2 instances only with MFA enabled')">
+      <span class="ic">🔐</span> MFA-gated EC2 access
+    </button>
+    <button class="quick-btn" onclick="insertPrompt('Allow DataEngineers to query DynamoDB between 9am and 6pm UTC')">
+      <span class="ic">⏰</span> Time-restricted access
+    </button>
+    <button class="quick-btn" onclick="insertPrompt('Allow the SecurityAuditor role to read CloudTrail logs from the us-east-1 region only')">
+      <span class="ic">🔎</span> Regional audit access
+    </button>
+    <button class="quick-btn" onclick="insertPrompt('Deny all lambda invocations from IPs outside 10.0.0.0/8')">
+      <span class="ic">🌐</span> IP-restricted Lambda
+    </button>
+
+    <div class="sidebar-bottom">
+      <button class="new-btn" onclick="resetSession()">
+        <span>✦</span> New Policy Session
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────────── -->
+  <section class="chat-area">
+    <div class="top-bar">
+      <span class="top-title">Chat Session</span>
+      <div class="top-model">
+        <div class="model-dot"></div>
+        Gemini 2.0 Flash
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <!-- Empty state shown before first message -->
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">☁️</div>
+        <div class="empty-title">What policy do you need?</div>
+        <div class="empty-sub">Describe your access control rule in plain English. I'll ask follow-up questions and generate a valid CloudPol policy.</div>
+        <div class="starter-grid">
+          <div class="starter-card" onclick="insertPrompt('Allow DevOps to read from S3')">
+            <div class="sc-icon">🪣</div>
+            <div class="sc-title">S3 Access</div>
+            <div class="sc-desc">Grant or restrict S3 bucket permissions</div>
+          </div>
+          <div class="starter-card" onclick="insertPrompt('Deny interns from deleting EC2 instances')">
+            <div class="sc-icon">🖥️</div>
+            <div class="sc-title">EC2 Policies</div>
+            <div class="sc-desc">Control compute instance operations</div>
+          </div>
+          <div class="starter-card" onclick="insertPrompt('Allow SREs to invoke Lambda functions only with MFA')">
+            <div class="sc-icon">⚡</div>
+            <div class="sc-title">Lambda + MFA</div>
+            <div class="sc-desc">Enforce MFA for sensitive operations</div>
+          </div>
+          <div class="starter-card" onclick="insertPrompt('Restrict database access to office hours 9-17 UTC')">
+            <div class="sc-icon">⏰</div>
+            <div class="sc-title">Time Windows</div>
+            <div class="sc-desc">Time-based access restrictions</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggestions row (populated dynamically) -->
+    <div class="suggestions" id="suggestions"></div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea id="user-input" rows="1"
+          placeholder="Describe your access policy in plain English…"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()" title="Send (Enter)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ── State ─────────────────────────────────────────────────────────── */
+const SESSION_ID = 'session-' + Math.random().toString(36).slice(2);
+let isLoading = false;
+
+/* ── Configure marked ─────────────────────────────────────────────── */
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+  highlight: (code, lang) => {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value;
+    }
+    return hljs.highlightAuto(code).value;
+  }
+});
+
+/* ── Auto-resize textarea ─────────────────────────────────────────── */
+function autoResize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(ta.scrollHeight, 200) + 'px';
+}
+
+/* ── Key handler ──────────────────────────────────────────────────── */
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+/* ── Insert quick prompt ──────────────────────────────────────────── */
+function insertPrompt(text) {
+  const ta = document.getElementById('user-input');
+  ta.value = text;
+  autoResize(ta);
+  ta.focus();
+}
+
+/* ── Escape HTML ──────────────────────────────────────────────────── */
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Append message ───────────────────────────────────────────────── */
+function appendMsg(role, html, policy, compiler) {
+  // Hide empty state
+  const es = document.getElementById('empty-state');
+  if (es) es.style.display = 'none';
+
+  const msgs = document.getElementById('messages');
+  const isUser = role === 'user';
+
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+
+  const avatarHtml = isUser
+    ? `<div class="avatar avatar-user">👤</div>`
+    : `<div class="avatar avatar-ai">
+         <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+           <path d="M7 14L12 19L21 10" stroke="#4f8ef7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+         </svg>
+       </div>`;
+
+  let extras = '';
+
+  // Policy block
+  if (policy) {
+    extras += `
+      <div class="policy-block">
+        <div class="policy-header">
+          <span>📄</span> Generated CloudPol DSL
+          <span class="pill">cloudpol</span>
+        </div>
+        <div class="policy-src">${esc(policy)}</div>
+      </div>`;
+  }
+
+  // Compiler result card
+  if (compiler) {
+    const ok    = compiler.success;
+    const label = ok ? '✅ Compilation Successful' : '❌ Compilation Failed';
+    const cls   = ok ? 'success' : 'fail';
+    const body  = ok
+      ? (compiler.iam_json || '// No IAM JSON returned')
+      : (compiler.stderr   || '// Unknown error');
+
+    extras += `
+      <div class="compiler-card">
+        <div class="compiler-header ${cls}" onclick="toggleCompiler(this)">
+          ${label}
+          <span class="chevron">›</span>
+        </div>
+        <div class="compiler-body">${esc(body)}</div>
+      </div>`;
+  }
+
+  row.innerHTML = `
+    ${avatarHtml}
+    <div class="msg-content">
+      <div class="msg-name">${isUser ? 'You' : 'CloudPol AI'}</div>
+      <div class="msg-body">${html}${extras}</div>
+    </div>`;
+
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  // Syntax-highlight inside new row
+  row.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+
+  return row;
+}
+
+/* ── Typing indicator ─────────────────────────────────────────────── */
+function showTyping() {
+  const es = document.getElementById('empty-state');
+  if (es) es.style.display = 'none';
+  const msgs = document.getElementById('messages');
+  const row  = document.createElement('div');
+  row.className = 'msg-row';
+  row.id = 'typing-row';
+  row.innerHTML = `
+    <div class="avatar avatar-ai">
+      <svg width="16" height="16" viewBox="0 0 28 28" fill="none">
+        <path d="M7 14L12 19L21 10" stroke="#4f8ef7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="msg-content">
+      <div class="msg-name">CloudPol AI</div>
+      <div class="msg-body typing">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      </div>
+    </div>`;
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping() {
+  const el = document.getElementById('typing-row');
+  if (el) el.remove();
+}
+
+/* ── Toggle compiler card ─────────────────────────────────────────── */
+function toggleCompiler(header) {
+  header.classList.toggle('open');
+  const body = header.nextElementSibling;
+  body.classList.toggle('visible');
+}
+
+/* ── Suggestions ──────────────────────────────────────────────────── */
+const SUGGESTIONS_POOL = [
+  'Add a WHERE condition for MFA',
+  'Restrict to us-east-1 region',
+  'Limit access to office hours (9–17 UTC)',
+  'Restrict by IP: 10.0.0.0/8',
+  'Also deny from non-production envs',
+  'Change this to a DENY rule',
+  'Apply to a different role',
+];
+function showSuggestions(texts) {
+  const box = document.getElementById('suggestions');
+  box.innerHTML = texts.map(t =>
+    `<button class="sugg-chip" onclick="insertPrompt('${t.replace(/'/g, "\\'")}')">💡 ${t}</button>`
+  ).join('');
+}
+function clearSuggestions() {
+  document.getElementById('suggestions').innerHTML = '';
+}
+
+/* ── Main send ────────────────────────────────────────────────────── */
+async function sendMessage() {
+  if (isLoading) return;
+  const ta  = document.getElementById('user-input');
+  const msg = ta.value.trim();
+  if (!msg) return;
+
+  ta.value = '';
+  autoResize(ta);
+  clearSuggestions();
+
+  // User bubble
+  appendMsg('user', marked.parse(msg));
+
+  // Disable send
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+
+  showTyping();
+
+  try {
+    const res  = await fetch('/api/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ session_id: SESSION_ID, message: msg }),
+    });
+    const data = await res.json();
+    removeTyping();
+
+    if (data.error) {
+      appendMsg('ai', `<span style="color:var(--red)">Error: ${esc(data.error)}</span>`);
+    } else {
+      const html = data.reply ? marked.parse(data.reply) : '';
+      appendMsg('ai', html, data.policy, data.compiler);
+
+      // Show contextual suggestions if no policy yet
+      if (!data.policy) {
+        const pool = SUGGESTIONS_POOL.slice().sort(() => Math.random() - 0.5).slice(0,3);
+        showSuggestions(pool);
+      }
+    }
+  } catch (err) {
+    removeTyping();
+    appendMsg('ai', `<span style="color:var(--red)">Network error: ${esc(String(err))}</span>`);
+  } finally {
+    isLoading = false;
+    document.getElementById('send-btn').disabled = false;
+  }
+}
+
+/* ── Reset session ────────────────────────────────────────────────── */
+async function resetSession() {
+  await fetch('/api/reset', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ session_id: SESSION_ID }),
+  }).catch(() => {});
+
+  const msgs = document.getElementById('messages');
+  // Clear messages but restore empty state
+  msgs.innerHTML = `
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">☁️</div>
+      <div class="empty-title">What policy do you need?</div>
+      <div class="empty-sub">Describe your access control rule in plain English. I'll ask follow-up questions and generate a valid CloudPol policy.</div>
+      <div class="starter-grid">
+        <div class="starter-card" onclick="insertPrompt('Allow DevOps to read from S3')">
+          <div class="sc-icon">🪣</div><div class="sc-title">S3 Access</div>
+          <div class="sc-desc">Grant or restrict S3 bucket permissions</div>
+        </div>
+        <div class="starter-card" onclick="insertPrompt('Deny interns from deleting EC2 instances')">
+          <div class="sc-icon">🖥️</div><div class="sc-title">EC2 Policies</div>
+          <div class="sc-desc">Control compute instance operations</div>
+        </div>
+        <div class="starter-card" onclick="insertPrompt('Allow SREs to invoke Lambda functions only with MFA')">
+          <div class="sc-icon">⚡</div><div class="sc-title">Lambda + MFA</div>
+          <div class="sc-desc">Enforce MFA for sensitive operations</div>
+        </div>
+        <div class="starter-card" onclick="insertPrompt('Restrict database access to office hours 9-17 UTC')">
+          <div class="sc-icon">⏰</div><div class="sc-title">Time Windows</div>
+          <div class="sc-desc">Time-based access restrictions</div>
+        </div>
+      </div>
+    </div>`;
+  clearSuggestions();
+}
+
+/* ── Focus input on load ──────────────────────────────────────────── */
+window.addEventListener('load', () => {
+  document.getElementById('user-input').focus();
+});
+</script>
+</body>
+</html>
